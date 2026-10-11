@@ -5,6 +5,9 @@
 // =============================================================================
 
 import { logout } from "./auth.js";
+import { auth, db } from "./firebase-config.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const icon = (d) =>
   `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -58,3 +61,22 @@ backdrop.addEventListener("click", () => setOpen(false));
 nav.querySelectorAll(".lm-links a").forEach((a) => a.addEventListener("click", () => setOpen(false)));
 document.addEventListener("keydown", (e) => e.key === "Escape" && setOpen(false));
 document.getElementById("lmLogout").addEventListener("click", logout);
+
+// ---- unread-message badge on the "Chat" menu item (shows on every page) ----
+const chatLink = nav.querySelector('.lm-links a[href="chat.html"]');
+const badge = document.createElement("span");
+badge.className = "lm-badge";
+badge.hidden = true;
+chatLink.appendChild(badge);
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) return;
+  const q = query(collection(db, "chats"), where("members", "array-contains", user.uid));
+  onSnapshot(q, (snap) => {
+    let total = 0;
+    snap.forEach((d) => { total += (d.data().unread && d.data().unread[user.uid]) || 0; });
+    badge.textContent = total > 99 ? "99+" : String(total);
+    badge.hidden = total === 0;
+    toggle.classList.toggle("has-unread", total > 0);
+  }, () => {});
+});

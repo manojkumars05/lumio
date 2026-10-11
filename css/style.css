@@ -510,3 +510,38 @@ body.has-sidebar .topbar a { display: none; } /* chat page: old "Home" link */
   body.has-sidebar .topbar { padding-left: 68px; }
   body.has-sidebar .container { padding-top: 0; }
 }
+
+/* 100. MOBILE POLISH -------------------------------------------------------- */
+html { -webkit-text-size-adjust: 100%; }
+img, svg, video { max-width: 100%; }
+.profile-card > div, .user-text { min-width: 0; }
+.profile-card small { overflow-wrap: anywhere; }
+
+@media (max-width: 800px) {
+  /* Header row 1: [menu button] Lumio ........ avatar     Row 2: full-width search */
+  body.has-sidebar .site-header, body.has-sidebar .site-header.no-search {
+    display: grid; grid-template-columns: 1fr auto; align-items: center;
+    row-gap: 10px; column-gap: 10px; padding: 12px 16px;
+  }
+  body.has-sidebar .site-header .brand {
+    display: inline-flex; grid-column: 1; grid-row: 1; margin-left: 56px; font-size: 1.25rem;
+  }
+  body.has-sidebar .site-header .header-right { grid-column: 2; grid-row: 1; justify-content: flex-end; }
+  body.has-sidebar .site-header .user-text { display: none; }
+  body.has-sidebar .site-header .search { grid-column: 1 / -1; grid-row: 2; width: 100%; }
+  .search input { width: 100%; min-width: 0; }
+
+  /* Home hero + profile card */
+  main { padding-block: 16px 48px; }
+  .hero { padding: 18px; gap: 16px; margin-bottom: 24px; border-radius: 20px; }
+  .hero h1 { font-size: 1.45rem; line-height: 1.25; }
+  .profile-card { padding: 12px 14px; gap: 12px; width: 100%; }
+  .profile-card .avatar-lg { width: 52px; height: 52px; font-size: 1.1rem; }
+  .alert { font-size: 0.92rem; }
+  .section-head h2 { font-size: 1.2rem; }
+}
+
+/* Unread badge (sidebar + menu button) */
+.lm-badge { margin-left: auto; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #ff4d7a; color: #fff; font-size: 0.75rem; font-weight: 700; display: grid; place-items: center; }
+.lm-toggle { position: relative; }
+.lm-toggle.has-unread::after { content: ""; position: absolute; top: 6px; right: 6px; width: 10px; height: 10px; border-radius: 50%; background: #ff4d7a; }

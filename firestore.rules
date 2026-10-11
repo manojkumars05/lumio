@@ -126,6 +126,29 @@ service cloud.firestore {
         && resource.data.uploadedBy == request.auth.uid;
     }
 
+    // ---- chat header: who is in a chat (so the other person sees it too) --
+    match /chats/{chatId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['members', 'ids', 'updatedAt', 'lastText', 'lastSender', 'unread', 'seenAt'])
+        && request.resource.data.members is list
+        && request.resource.data.members.size() == 2
+        && request.auth.uid in request.resource.data.members
+        && chatId == request.resource.data.members[0] + '_' + request.resource.data.members[1]
+        && request.resource.data.get('lastSender', request.auth.uid) == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.members
+        && request.resource.data.members == resource.data.members
+        && request.resource.data.keys().hasOnly(['members', 'ids', 'updatedAt', 'lastText', 'lastSender', 'unread', 'seenAt'])
+        && (request.resource.data.get('lastSender', null) == resource.data.get('lastSender', null)
+            || request.resource.data.get('lastSender', request.auth.uid) == request.auth.uid);
+
+      allow delete: if false;
+    }
+
     // ---- private chats ----
   match /chats/{chatId}/messages/{msgId} {
   allow read: if signedIn()

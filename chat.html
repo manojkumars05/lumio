@@ -2,24 +2,31 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <title>Chat - Lumio</title>
   <link rel="stylesheet" href="css/style.css">
   <style>
     :root { --c-bg:#0f0b24; --c-panel:#1a1440; --c-line:#2d2566; --c-text:#f1eeff; --c-mute:#9e97cf; --c-me:#6c4cf0; --c-them:#241c55; }
     * { box-sizing: border-box; }
-    body { margin:0; background:linear-gradient(160deg,#0f0b24,#1b1240); color:var(--c-text); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; min-height:100vh; }
-    .topbar { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--c-line); }
+    html, body { height:100%; overflow:hidden; }
+    body { margin:0; background:linear-gradient(160deg,#0f0b24,#1b1240); color:var(--c-text); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; height:var(--app-h, 100dvh); min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+    .topbar { flex:none; display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--c-line); }
     .topbar a { color:var(--c-text); text-decoration:none; font-weight:600; }
     .topbar h1 { font-size:1.1rem; margin:0; flex:1; }
-    .wrap { max-width:900px; margin:0 auto; display:grid; grid-template-columns:280px 1fr; height:calc(100vh - 56px); }
-    .users { border-right:1px solid var(--c-line); overflow-y:auto; }
+    .wrap { max-width:900px; margin:0 auto; display:grid; grid-template-columns:280px 1fr; flex:1; min-height:0; width:100%; }
+    .users { border-right:1px solid var(--c-line); overflow-y:auto; min-height:0; }
     .user { display:flex; align-items:center; gap:12px; width:100%; padding:12px 16px; background:none; border:0; border-bottom:1px solid var(--c-line); color:inherit; text-align:left; cursor:pointer; font:inherit; }
     .user:hover, .user.active { background:var(--c-panel); }
     .avatar { width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#ff6a88,#6c4cf0); display:grid; place-items:center; font-weight:700; flex:none; }
+    .user .meta { min-width:0; flex:1; }
+    .user .meta strong, .user .meta small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .user .badge { min-width:22px; height:22px; padding:0 6px; border-radius:11px; background:#ff4d7a; color:#fff; font-size:.75rem; font-weight:700; display:grid; place-items:center; flex:none; }
+    .msg time .seen { color:#9fe7ff; font-weight:600; }
+    .user .dot { width:10px; height:10px; border-radius:50%; background:#ff6a88; flex:none; }
     .user small { display:block; color:var(--c-mute); font-size:.78rem; }
     .me-id { padding:14px 16px; border-bottom:1px solid var(--c-line); font-size:.82rem; color:var(--c-mute); }
     .me-id strong { display:block; color:var(--c-text); font-size:1.05rem; letter-spacing:.04em; }
+    .notif-btn { margin-top:10px; padding:8px 12px; border-radius:10px; border:1px solid var(--c-line); background:var(--c-panel); color:var(--c-text); font:inherit; font-size:.82rem; cursor:pointer; }
     .find { padding:12px 16px; border-bottom:1px solid var(--c-line); }
     .find form { display:flex; gap:8px; }
     .find input { flex:1; min-width:0; padding:10px 12px; border-radius:10px; border:1px solid var(--c-line); background:var(--c-panel); color:var(--c-text); font:inherit; text-transform:uppercase; }
@@ -28,16 +35,16 @@
     .find-msg { font-size:.82rem; color:var(--c-mute); margin:8px 0 0; }
     .find-msg.err { color:#ff8a8a; }
     .label { padding:10px 16px 4px; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--c-mute); }
-    .room { display:flex; flex-direction:column; min-width:0; }
-    .room-head { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--c-line); font-weight:600; }
+    .room { display:flex; flex-direction:column; min-width:0; min-height:0; }
+    .room-head { flex:none; display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--c-line); font-weight:600; }
     .back { display:none; background:none; border:0; color:var(--c-text); font-size:1.3rem; cursor:pointer; }
-    .msgs { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
+    .msgs { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:16px; display:flex; flex-direction:column; gap:8px; }
     .msg { max-width:78%; padding:9px 13px; border-radius:16px; background:var(--c-them); word-wrap:break-word; white-space:pre-wrap; }
     .msg.me { align-self:flex-end; background:var(--c-me); }
     .msg time { display:block; font-size:.68rem; color:rgba(255,255,255,.6); margin-top:3px; }
     .empty { margin:auto; color:var(--c-mute); text-align:center; padding:20px; }
-    .composer { display:flex; gap:8px; padding:12px; border-top:1px solid var(--c-line); }
-    .composer input { flex:1; padding:12px 14px; border-radius:22px; border:1px solid var(--c-line); background:var(--c-panel); color:var(--c-text); font:inherit; }
+    .composer { flex:none; display:flex; gap:8px; padding:12px; padding-bottom:calc(12px + env(safe-area-inset-bottom)); border-top:1px solid var(--c-line); }
+    .composer input { flex:1; min-width:0; font-size:16px; padding:12px 14px; border-radius:22px; border:1px solid var(--c-line); background:var(--c-panel); color:var(--c-text); font:inherit; }
     .composer input:focus-visible, .composer button:focus-visible, .user:focus-visible { outline:2px solid #a893ff; outline-offset:2px; }
     .composer button { padding:0 20px; border-radius:22px; border:0; background:var(--c-me); color:#fff; font-weight:600; cursor:pointer; }
     .composer button:disabled { opacity:.5; }
@@ -47,6 +54,7 @@
       .wrap.in-chat .users { display:none; }
       .wrap.in-chat .room { display:flex; }
       .back { display:block; }
+      body.chat-open .topbar, body.chat-open .lm-toggle { display:none; }
       .msg { max-width:88%; }
     }
   </style>
@@ -59,7 +67,9 @@
 
   <div class="wrap" id="wrap">
     <aside class="users">
-      <div class="me-id">Your ID <strong id="myId">...</strong></div>
+      <div class="me-id">Your ID <strong id="myId">...</strong>
+        <button type="button" id="notifBtn" class="notif-btn" hidden>🔔 Turn on message notifications</button>
+      </div>
       <div class="find">
         <form id="findForm">
           <input id="findInput" type="text" placeholder="Search by ID" autocomplete="off" maxlength="9" aria-label="Search by user ID">
@@ -87,17 +97,82 @@
   <script type="module">
     import { auth, db } from "./js/firebase-config.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp }
+    import { collection, addDoc, setDoc, doc, increment, query, where, orderBy, onSnapshot, serverTimestamp }
       from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { ensureProfile } from "./js/auth.js";
     import { ensureUserId, findByUserId, normalizeId } from "./js/handle.js";
 
     const $ = (id) => document.getElementById(id);
-    let me = null, unsub = null, contacts = [];
+    let me = null, unsub = null, unsubInbox = null, contacts = [];
+    let activeUid = null;
+    let firstChatSnap = true;
+    let unreadTotal = 0;
+    const baseTitle = document.title;
+    const meta = {};   // uid -> { text, sender, ms }  latest message info from chat docs
+    let lastMsgs = []; // messages of the open chat (for re-rendering ticks)
 
     const storeKey = () => "lumio_contacts_" + me.uid;
     function saveContacts() {
       try { localStorage.setItem(storeKey(), JSON.stringify(contacts)); } catch {}
+    }
+
+    // Tell the other person I have read the chat (resets my unread counter).
+    async function markRead(uid) {
+      if (!meta[uid]) return;               // chat doc does not exist yet
+      try {
+        await setDoc(doc(db, "chats", chatIdFor(uid)), {
+          unread: { [me.uid]: 0 },
+          seenAt: { [me.uid]: serverTimestamp() }
+        }, { merge: true });
+      } catch (e) { console.error(e); }
+    }
+
+    // ---- keep the page exactly as tall as the visible area (keyboard open) ----
+    function fitViewport() {
+      const vv = window.visualViewport;
+      if (vv) document.documentElement.style.setProperty("--app-h", vv.height + "px");
+      window.scrollTo(0, 0);
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", fitViewport);
+      window.visualViewport.addEventListener("scroll", () => window.scrollTo(0, 0));
+    }
+    fitViewport();
+
+    // ---- notifications (work while Lumio is open in the browser / background) ----
+    let swReg = null;
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").then((r) => { swReg = r; }).catch(() => {});
+    }
+    function updateNotifBtn() {
+      const b = $("notifBtn");
+      b.hidden = !("Notification" in window) || Notification.permission !== "default";
+    }
+    $("notifBtn").addEventListener("click", async () => {
+      try { await Notification.requestPermission(); } catch {}
+      updateNotifBtn();
+    });
+    updateNotifBtn();
+
+    function updateTitle() {
+      unreadTotal = contacts.reduce((n, c) => n + unreadOf(c.uid), 0);
+      document.title = unreadTotal ? "(" + unreadTotal + ") " + baseTitle : baseTitle;
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && activeUid) markRead(activeUid);
+    });
+
+    async function notifyMessage(uid, text) {
+      const c = contacts.find((x) => x.uid === uid);
+      const title = (c && c.name) || "New message";
+      try { navigator.vibrate && navigator.vibrate(120); } catch {}
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      const opts = { body: text || "New message", icon: "assets/images/logo.svg", tag: "lumio-" + uid, renotify: true };
+      try {
+        const reg = swReg || (navigator.serviceWorker && await navigator.serviceWorker.getRegistration());
+        if (reg) await reg.showNotification(title, opts);
+        else new Notification(title, opts);
+      } catch (e) { console.error(e); }
     }
 
     onAuthStateChanged(auth, async (user) => {
@@ -105,6 +180,7 @@
       me = user;
       try { contacts = JSON.parse(localStorage.getItem(storeKey()) || "[]"); } catch { contacts = []; }
       renderContacts();
+      listenForChats();               // start live updates right away
       try {
         const profile = await ensureProfile(user);
         $("myId").textContent = await ensureUserId(user, profile.name);
@@ -114,6 +190,54 @@
       }
       refreshContactNames();
     });
+
+    // Watch every chat I am a member of: new chats from other people show up
+    // automatically, and the list shows the latest message + unread dot live.
+    function listenForChats() {
+      if (unsubInbox) unsubInbox();
+      const q = query(collection(db, "chats"), where("members", "array-contains", me.uid));
+      unsubInbox = onSnapshot(q, async (snap) => {
+        let changed = false;
+        const incoming = [];
+        for (const d of snap.docs) {
+          const data = d.data();
+          const other = (data.members || []).find((u) => u !== me.uid);
+          if (!other) continue;
+          const ms = data.updatedAt && data.updatedAt.toMillis ? data.updatedAt.toMillis() : Date.now();
+          const toMs = (t) => (t && t.toMillis ? t.toMillis() : 0);
+          const prevUnread = meta[other] ? meta[other].unread : 0;
+          meta[other] = {
+            text: data.lastText || "", sender: data.lastSender || "", ms,
+            unread: (data.unread && data.unread[me.uid]) || 0,
+            theirSeenMs: toMs(data.seenAt && data.seenAt[other])
+          };
+          if (!firstChatSnap && meta[other].unread > prevUnread && data.lastSender === other
+              && !(activeUid === other && !document.hidden)) {
+            incoming.push([other, data.lastText]);
+          }
+          // I am looking at this chat right now -> mark as read.
+          if (activeUid === other && !document.hidden && meta[other].unread > 0) markRead(other);
+
+          if (!contacts.some((c) => c.uid === other)) {
+            const theirId = data.ids && data.ids[other];
+            if (!theirId) continue;
+            try {
+              const h = await findByUserId(theirId);
+              if (h && h.uid === other) {
+                contacts.unshift({ uid: other, name: h.name, id: theirId });
+                changed = true;
+              }
+            } catch (e) { console.error(e); }
+          }
+        }
+        if (changed) saveContacts();
+        renderContacts();
+        if (activeUid) renderMsgs();        // refresh ✓ / ✓✓ ticks
+        // Notify only when the unread count actually grew (a new message).
+        incoming.forEach(([uid, text]) => notifyMessage(uid, text));
+        firstChatSnap = false;
+      }, (err) => console.error("Chat list listener failed (check Firestore rules):", err));
+    }
 
     // Keep saved contacts' names up to date (people may rename themselves).
     async function refreshContactNames() {
@@ -158,6 +282,11 @@
       }
     });
 
+    const unreadOf = (uid) => {
+      const n = (meta[uid] && meta[uid].unread) || 0;
+      return activeUid === uid && !document.hidden ? 0 : n;
+    };
+
     function renderContacts() {
       const box = $("users");
       box.innerHTML = "";
@@ -165,58 +294,83 @@
         box.innerHTML = '<p class="empty">Search a friend\'s ID to start chatting.</p>';
         return;
       }
-      contacts.forEach((c) => {
+      const sorted = [...contacts].sort((a, b) => ((meta[b.uid] && meta[b.uid].ms) || 0) - ((meta[a.uid] && meta[a.uid].ms) || 0));
+      sorted.forEach((c) => {
         const b = document.createElement("button");
-        b.className = "user";
+        b.className = "user" + (c.uid === activeUid ? " active" : "");
         b.dataset.uid = c.uid;
         const av = document.createElement("div");
         av.className = "avatar";
         av.textContent = (c.name || "?").charAt(0).toUpperCase();
         const info = document.createElement("div");
+        info.className = "meta";
         const nm = document.createElement("strong");
         nm.textContent = c.name || "User";
-        const idEl = document.createElement("small");
-        idEl.textContent = c.id;
-        info.append(nm, idEl);
+        const sub = document.createElement("small");
+        sub.textContent = (meta[c.uid] && meta[c.uid].text) || c.id;
+        info.append(nm, sub);
         b.append(av, info);
-        b.addEventListener("click", () => openChat(c.uid, c.name || "User", b));
+        const n = unreadOf(c.uid);
+        if (n > 0) { const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = n > 99 ? "99+" : String(n); b.appendChild(badge); }
+        b.addEventListener("click", () => openChat(c.uid, c.name || "User"));
         box.appendChild(b);
       });
+      updateTitle();
     }
 
     function chatIdFor(other) { return [me.uid, other].sort().join("_"); }
 
-    function openChat(otherUid, name, btn) {
-      document.querySelectorAll(".user").forEach((x) => x.classList.remove("active"));
-      btn.classList.add("active");
+    function openChat(otherUid, name) {
+      activeUid = otherUid;
+      lastMsgs = [];
+      renderContacts();
+      markRead(otherUid);
       $("peerName").textContent = name;
       $("composer").hidden = false;
       $("wrap").classList.add("in-chat");
+      document.body.classList.add("chat-open");
       if (unsub) unsub();
       const cid = chatIdFor(otherUid);
       $("composer").dataset.cid = cid;
       const q = query(collection(db, "chats", cid, "messages"), orderBy("createdAt"));
-      unsub = onSnapshot(q, (snap) => {
-        const list = $("msgs");
-        list.innerHTML = "";
-        if (snap.empty) list.innerHTML = '<p class="empty">No messages yet. Say hi!</p>';
-        snap.forEach((d) => {
-          const m = d.data();
-          const el = document.createElement("div");
-          el.className = "msg" + (m.senderId === me.uid ? " me" : "");
-          el.textContent = m.text;
-          if (m.createdAt && m.createdAt.toDate) {
-            const t = document.createElement("time");
-            t.textContent = m.createdAt.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-            el.appendChild(t);
-          }
-          list.appendChild(el);
+      unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
+        lastMsgs = snap.docs.map((d) => {
+          const m = d.data({ serverTimestamps: "estimate" });
+          return { text: m.text, senderId: m.senderId, ms: m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0,
+                   pending: d.metadata.hasPendingWrites };
         });
-        list.scrollTop = list.scrollHeight;
+        renderMsgs(snap.metadata.hasPendingWrites);
       }, (err) => {
         console.error(err);
         $("msgs").innerHTML = '<p class="empty">Cannot read messages. Check Firestore rules.</p>';
       });
+    }
+
+    function renderMsgs(forceScroll) {
+      const list = $("msgs");
+      const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 120;
+      const theirSeen = (activeUid && meta[activeUid] && meta[activeUid].theirSeenMs) || 0;
+      list.innerHTML = "";
+      if (!lastMsgs.length) list.innerHTML = '<p class="empty">No messages yet. Say hi!</p>';
+      lastMsgs.forEach((m) => {
+        const el = document.createElement("div");
+        const mine = m.senderId === me.uid;
+        el.className = "msg" + (mine ? " me" : "");
+        el.textContent = m.text;
+        const t = document.createElement("time");
+        const clock = m.ms ? new Date(m.ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+        t.textContent = clock;
+        if (mine) {
+          const tick = document.createElement("span");
+          if (m.pending) { tick.textContent = " 🕓"; }
+          else if (m.ms && theirSeen >= m.ms) { tick.textContent = " ✓✓ Seen"; tick.className = "seen"; }
+          else { tick.textContent = " ✓ Sent"; }
+          t.appendChild(tick);
+        }
+        el.appendChild(t);
+        list.appendChild(el);
+      });
+      if (nearBottom || forceScroll) list.scrollTop = list.scrollHeight;
     }
 
     $("composer").addEventListener("submit", async (e) => {
@@ -225,22 +379,37 @@
       const text = input.value.trim();
       const cid = $("composer").dataset.cid;
       if (!text || !cid) return;
-      $("send").disabled = true;
+      input.value = "";               // clear immediately, keep keyboard open
+      input.focus();
       try {
+        const otherUid = cid.split("_").find((u) => u !== me.uid);
+        // Chat header doc: lets the other person see this chat in THEIR list.
+        await setDoc(doc(db, "chats", cid), {
+          members: [me.uid, otherUid].sort(),
+          ids: { [me.uid]: $("myId").textContent },
+          lastText: text.slice(0, 80),
+          lastSender: me.uid,
+          unread: { [otherUid]: increment(1), [me.uid]: 0 },
+          seenAt: { [me.uid]: serverTimestamp() },
+          updatedAt: serverTimestamp()
+        }, { merge: true });
         await addDoc(collection(db, "chats", cid, "messages"), {
           text, senderId: me.uid, createdAt: serverTimestamp()
         });
-        input.value = "";
       } catch (err) {
         console.error(err);
+        input.value = text;
         alert("Message not sent. Check Firestore rules.");
-      } finally {
-        $("send").disabled = false;
-        input.focus();
       }
     });
 
-    $("back").addEventListener("click", () => $("wrap").classList.remove("in-chat"));
+    $("back").addEventListener("click", () => {
+      activeUid = null;
+      if (unsub) { unsub(); unsub = null; }
+      $("wrap").classList.remove("in-chat");
+      document.body.classList.remove("chat-open");
+      renderContacts();
+    });
   </script>
   <script type="module" src="js/sidebar.js"></script>
 </body>

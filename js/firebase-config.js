@@ -14,7 +14,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCobyb4SZk6EwYH-O0uZdddhR9fWtZznj8",
@@ -31,4 +31,6 @@ export const isConfigured = !firebaseConfig.apiKey.startsWith("YOUR_");
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Long-polling auto-detect: keeps live updates (chat) working on mobile
+// networks / browsers where the normal WebSocket stream gets blocked or stalls.
+export const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
