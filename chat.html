@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat - Lumio</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    :root { --c-bg:#0f0b24; --c-panel:#1a1440; --c-line:#2d2566; --c-text:#f1eeff; --c-mute:#9e97cf; --c-me:#6c4cf0; --c-them:#241c55; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:linear-gradient(160deg,#0f0b24,#1b1240); color:var(--c-text); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; min-height:100vh; }
+    .topbar { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--c-line); }
+    .topbar a { color:var(--c-text); text-decoration:none; font-weight:600; }
+    .topbar h1 { font-size:1.1rem; margin:0; flex:1; }
+    .wrap { max-width:900px; margin:0 auto; display:grid; grid-template-columns:280px 1fr; height:calc(100vh - 56px); }
+    .users { border-right:1px solid var(--c-line); overflow-y:auto; }
+    .user { display:flex; align-items:center; gap:12px; width:100%; padding:12px 16px; background:none; border:0; border-bottom:1px solid var(--c-line); color:inherit; text-align:left; cursor:pointer; font:inherit; }
+    .user:hover, .user.active { background:var(--c-panel); }
+    .avatar { width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#ff6a88,#6c4cf0); display:grid; place-items:center; font-weight:700; flex:none; }
+    .user small { display:block; color:var(--c-mute); font-size:.78rem; }
+    .room { display:flex; flex-direction:column; min-width:0; }
+    .room-head { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--c-line); font-weight:600; }
+    .back { display:none; background:none; border:0; color:var(--c-text); font-size:1.3rem; cursor:pointer; }
+    .msgs { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
+    .msg { max-width:78%; padding:9px 13px; border-radius:16px; background:var(--c-them); word-wrap:break-word; white-space:pre-wrap; }
+    .msg.me { align-self:flex-end; background:var(--c-me); }
+    .msg time { display:block; font-size:.68rem; color:rgba(255,255,255,.6); margin-top:3px; }
+    .empty { margin:auto; color:var(--c-mute); text-align:center; padding:20px; }
+    .composer { display:flex; gap:8px; padding:12px; border-top:1px solid var(--c-line); }
+    .composer input { flex:1; padding:12px 14px; border-radius:22px; border:1px solid var(--c-line); background:var(--c-panel); color:var(--c-text); font:inherit; }
+    .composer input:focus-visible, .composer button:focus-visible, .user:focus-visible { outline:2px solid #a893ff; outline-offset:2px; }
+    .composer button { padding:0 20px; border-radius:22px; border:0; background:var(--c-me); color:#fff; font-weight:600; cursor:pointer; }
+    .composer button:disabled { opacity:.5; }
+    @media (max-width:700px) {
+      .wrap { grid-template-columns:1fr; }
+      .room { display:none; }
+      .wrap.in-chat .users { display:none; }
+      .wrap.in-chat .room { display:flex; }
+      .back { display:block; }
+      .msg { max-width:88%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <a href="home.html">Home</a>
+    <h1>Messages</h1>
+  </div>
+
+  <div class="wrap" id="wrap">
+    <aside class="users" id="users"><p class="empty">Loading users...</p></aside>
+
+    <section class="room" id="room">
+      <div class="room-head">
+        <button class="back" id="back" aria-label="Back to users">&larr;</button>
+        <span id="peerName">Pick someone to chat with</span>
+      </div>
+      <div class="msgs" id="msgs"><p class="empty">Choose a person from the list to start chatting.</p></div>
+      <form class="composer" id="composer" hidden>
+        <input id="text" type="text" maxlength="1000" placeholder="Type a message" autocomplete="off">
+        <button type="submit" id="send">Send</button>
+      </form>
+    </section>
+  </div>
+
+  <script type="module">
+    import { auth, db } from "./js/firebase-config.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { collection, getDocs, addDoc, query, orderBy, onSnapshot, serverTimestamp }
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const $ = (id) => document.getElementById(id);
+    let me = null, unsub = null;
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { location.replace("login.html"); return; }
+      me = user;
+      await loadUsers();
+    });
+
+    async function loadUsers() {
+      const box = $("users");
+      try {
+        const snap = await getDocs(collection(db, "users"));
+        box.innerHTML = "";
+        let count = 0;
+        snap.forEach((d) => {
+          if (d.id === me.uid) return;
+          count++;
+          const u = d.data();
+          const b = document.createElement("button");
+          b.className = "user";
+          const av = document.createElement("div");
+          av.className = "avatar";
+          av.textContent = (u.name || "?").charAt(0).toUpperCase();
+          const info = document.createElement("div");
+          const nm = document.createElement("strong");
+          nm.textContent = u.name || "User";
+          const em = document.createElement("small");
+          em.textContent = u.email || "";
+          info.append(nm, em);
+          b.append(av, info);
+          b.addEventListener("click", () => openChat(d.id, u.name || "User", b));
+          box.appendChild(b);
+        });
+        if (!count) box.innerHTML = '<p class="empty">No other users yet. Ask a friend to register.</p>';
+      } catch (e) {
+        console.error(e);
+        box.innerHTML = '<p class="empty">Could not load users. Check Firestore rules.</p>';
+      }
+    }
+
+    function chatIdFor(other) { return [me.uid, other].sort().join("_"); }
+
+    function openChat(otherUid, name, btn) {
+      document.querySelectorAll(".user").forEach((x) => x.classList.remove("active"));
+      btn.classList.add("active");
+      $("peerName").textContent = name;
+      $("composer").hidden = false;
+      $("wrap").classList.add("in-chat");
+      if (unsub) unsub();
+      const cid = chatIdFor(otherUid);
+      $("composer").dataset.cid = cid;
+      const q = query(collection(db, "chats", cid, "messages"), orderBy("createdAt"));
+      unsub = onSnapshot(q, (snap) => {
+        const list = $("msgs");
+        list.innerHTML = "";
+        if (snap.empty) list.innerHTML = '<p class="empty">No messages yet. Say hi!</p>';
+        snap.forEach((d) => {
+          const m = d.data();
+          const el = document.createElement("div");
+          el.className = "msg" + (m.senderId === me.uid ? " me" : "");
+          el.textContent = m.text;
+          if (m.createdAt && m.createdAt.toDate) {
+            const t = document.createElement("time");
+            t.textContent = m.createdAt.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            el.appendChild(t);
+          }
+          list.appendChild(el);
+        });
+        list.scrollTop = list.scrollHeight;
+      }, (err) => {
+        console.error(err);
+        $("msgs").innerHTML = '<p class="empty">Cannot read messages. Check Firestore rules.</p>';
+      });
+    }
+
+    $("composer").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const input = $("text");
+      const text = input.value.trim();
+      const cid = $("composer").dataset.cid;
+      if (!text || !cid) return;
+      $("send").disabled = true;
+      try {
+        await addDoc(collection(db, "chats", cid, "messages"), {
+          text, senderId: me.uid, createdAt: serverTimestamp()
+        });
+        input.value = "";
+      } catch (err) {
+        console.error(err);
+        alert("Message not sent. Check Firestore rules.");
+      } finally {
+        $("send").disabled = false;
+        input.focus();
+      }
+    });
+
+    $("back").addEventListener("click", () => $("wrap").classList.remove("in-chat"));
+  </script>
+</body>
+</html>
