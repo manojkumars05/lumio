@@ -1,0 +1,16 @@
+# Never commit secrets
+serviceAccount*.json
+*-firebase-adminsdk-*.json
+.env
+.env.*
+
+# Firebase CLI local state
+.firebase/
+firebase-debug.log*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+node_modules/

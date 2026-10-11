@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home - Lumio</title>
+  <meta name="description" content="Browse and search the latest videos on Lumio.">
+  <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <a class="brand" href="home.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>Lumio</span></a>
+
+    <form class="search" role="search" id="searchForm">
+      <label for="searchInput" class="visually-hidden">Search videos</label>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="searchInput" type="search" placeholder="Search videos, topics, creators..." autocomplete="off">
+      <button class="search-btn" type="submit" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </form>
+
+    <div class="header-right">
+      <nav class="nav" aria-label="Primary">
+        <a href="home.html" aria-current="page">Home</a>
+        <a href="upload.html">Upload</a>
+      </nav>
+      <div class="user-chip">
+        <span class="avatar" data-user-avatar aria-hidden="true">?</span>
+        <span class="user-text"><strong data-user-name>Loading...</strong><small data-user-email></small></span>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" data-logout aria-label="Log out"><span class="btn-logout-text">Log out</span><svg class="logout-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button>
+    </div>
+  </header>
+
+  <main id="main" class="container">
+    <!-- Welcome + profile -->
+    <section class="hero" aria-labelledby="welcome">
+      <div>
+        <h1 id="welcome">Welcome back, <span data-user-first-name>friend</span> &#128075;</h1>
+        <p>Catch up on the latest uploads, or search for something specific.</p>
+      </div>
+      <div class="profile-card" aria-label="Your profile">
+        <span class="avatar avatar-lg" data-user-avatar aria-hidden="true">?</span>
+        <div>
+          <strong data-user-name>...</strong>
+          <small data-user-email></small>
+          <small data-user-since></small>
+        </div>
+      </div>
+    </section>
+
+    <div id="demoNotice" class="alert alert-warn" hidden>
+      You're seeing demo content because no videos have been uploaded yet. Admins can add real videos on the <a href="upload.html"><strong>Upload</strong></a> page.
+    </div>
+
+    <!-- Videos -->
+    <section class="block" aria-labelledby="videosTitle">
+      <div class="section-head">
+        <h2 id="videosTitle">Latest videos</h2>
+        <p class="count" id="resultsInfo" aria-live="polite"></p>
+      </div>
+      <div class="video-grid" id="videoGrid" aria-busy="true"></div>
+    </section>
+
+    <!-- Photos -->
+    <section class="block" id="photosSection" aria-labelledby="photosTitle" hidden>
+      <div class="section-head">
+        <h2 id="photosTitle">Photo gallery</h2>
+      </div>
+      <div class="photo-grid" id="photoGrid"></div>
+    </section>
+  </main>
+
+  <dialog class="lightbox" id="lightbox" aria-label="Photo viewer">
+    <img id="lightboxImg" src="" alt="">
+    <div class="lightbox-bar">
+      <strong id="lightboxCaption"></strong>
+      <button class="btn btn-ghost btn-sm" type="button" id="lightboxClose">Close</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="js/home.js"></script>
+</body>
+</html>

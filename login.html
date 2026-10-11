@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in - Lumio</title>
+  <meta name="description" content="Log in to your Lumio account.">
+  <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="auth-shell" id="main">
+    <section class="auth-hero" aria-hidden="true">
+      <a class="brand" href="index.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>Lumio</span></a>
+      <h2>Welcome back to the glow.</h2>
+      <p>Pick up where you left off and see what's new on Lumio.</p>
+    </section>
+
+    <section class="auth-panel" aria-labelledby="title">
+      <div class="auth-card">
+        <a class="brand brand-mobile" href="index.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>Lumio</span></a>
+        <h1 id="title">Log in</h1>
+        <p class="lead">Enter your details to continue.</p>
+
+        <div id="configWarning" class="alert alert-warn" role="alert" hidden>
+          Firebase isn't configured yet. Open <code>js/firebase-config.js</code> and paste your web-app config (see README, step 5).
+        </div>
+        <div id="formError" class="alert alert-error" role="alert" hidden></div>
+
+        <form id="loginForm" novalidate>
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required aria-describedby="email-error">
+            <div class="field-error" id="email-error" aria-live="polite"></div>
+          </div>
+
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Your password" required aria-describedby="password-error">
+            <div class="field-error" id="password-error" aria-live="polite"></div>
+          </div>
+
+          <label class="check"><input type="checkbox" id="showPassword"> Show password</label>
+
+          <button class="btn btn-primary btn-block" type="submit" id="submitBtn">
+            <span class="spinner" hidden></span><span class="btn-label">Log in</span>
+          </button>
+        </form>
+
+        <p class="auth-switch">New to Lumio? <a href="register.html">Create an account</a></p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/login.js"></script>
+</body>
+</html>

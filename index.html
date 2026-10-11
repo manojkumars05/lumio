@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lumio - Share your moments</title>
+  <meta name="description" content="Lumio is a video-sharing platform. Watch, search and share videos.">
+  <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Entry point: new visitors go to Register, signed-in users go straight to Home. -->
+  <main class="splash" id="main">
+    <img src="assets/images/logo.svg" alt="" width="72" height="72">
+    <h1>Lumio</h1>
+    <div class="spinner" role="status" aria-label="Loading"></div>
+    <p class="muted" id="fallback" hidden>Taking a while? <a href="register.html">Continue to Lumio</a></p>
+    <noscript><p class="muted">JavaScript is required. <a href="register.html">Continue to Lumio</a></p></noscript>
+  </main>
+
+  <script type="module">
+    import { auth, isConfigured } from "./js/firebase-config.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    // Show a manual link if redirecting takes unusually long.
+    setTimeout(() => (document.getElementById("fallback").hidden = false), 5000);
+
+    if (!isConfigured) {
+      location.replace("register.html"); // register page explains how to configure Firebase
+    } else {
+      onAuthStateChanged(auth, (user) => location.replace(user ? "home.html" : "register.html"));
+    }
+  </script>
+</body>
+</html>

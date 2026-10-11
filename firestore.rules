@@ -1,0 +1,93 @@
+rules_version = '2';
+
+// Lumio - Firestore Security Rules
+// Publish from the console (Firestore Database -> Rules) or with: firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- helpers ----------------------------------------------------------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // An admin is any user who has a document at admins/{uid}.
+    // Admin documents can only be created by hand in the Firebase console.
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function validTitle(value) {
+      return value is string && value.size() >= 1 && value.size() <= 120;
+    }
+
+    // ---- admins: a user may only check whether THEY are an admin ---------
+    match /admins/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // ---- users: each person can only see and edit their own profile -------
+    match /users/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.createdAt == request.time;
+
+      // Name may change; email and createdAt may not.
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 80;
+
+      allow delete: if false;
+    }
+
+    // ---- videos: any signed-in user can watch; only admins can publish ----
+    match /videos/{videoId} {
+      allow read: if signedIn();
+
+      allow create: if isAdmin()
+        && request.resource.data.uploadedBy == request.auth.uid
+        && validTitle(request.resource.data.title)
+        && request.resource.data.videoUrl is string
+        && request.resource.data.videoUrl.matches('https://.*')
+        && request.resource.data.thumbnailUrl is string
+        && (request.resource.data.thumbnailUrl == ''
+            || request.resource.data.thumbnailUrl.matches('https://.*'))
+        && request.resource.data.createdAt == request.time;
+
+      allow update, delete: if isAdmin()
+        && resource.data.uploadedBy == request.auth.uid;
+    }
+
+    // ---- images: same model as videos ------------------------------------
+    match /images/{imageId} {
+      allow read: if signedIn();
+
+      allow create: if isAdmin()
+        && request.resource.data.uploadedBy == request.auth.uid
+        && validTitle(request.resource.data.title)
+        && request.resource.data.imageUrl is string
+        && request.resource.data.imageUrl.matches('https://.*')
+        && request.resource.data.createdAt == request.time;
+
+      allow update, delete: if isAdmin()
+        && resource.data.uploadedBy == request.auth.uid;
+    }
+
+    // Everything else is closed by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
