@@ -18,6 +18,16 @@
     .user:hover, .user.active { background:var(--c-panel); }
     .avatar { width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#ff6a88,#6c4cf0); display:grid; place-items:center; font-weight:700; flex:none; }
     .user small { display:block; color:var(--c-mute); font-size:.78rem; }
+    .me-id { padding:14px 16px; border-bottom:1px solid var(--c-line); font-size:.82rem; color:var(--c-mute); }
+    .me-id strong { display:block; color:var(--c-text); font-size:1.05rem; letter-spacing:.04em; }
+    .find { padding:12px 16px; border-bottom:1px solid var(--c-line); }
+    .find form { display:flex; gap:8px; }
+    .find input { flex:1; min-width:0; padding:10px 12px; border-radius:10px; border:1px solid var(--c-line); background:var(--c-panel); color:var(--c-text); font:inherit; text-transform:uppercase; }
+    .find input::placeholder { text-transform:none; color:var(--c-mute); }
+    .find button { padding:0 14px; border-radius:10px; border:0; background:var(--c-me); color:#fff; font-weight:600; cursor:pointer; }
+    .find-msg { font-size:.82rem; color:var(--c-mute); margin:8px 0 0; }
+    .find-msg.err { color:#ff8a8a; }
+    .label { padding:10px 16px 4px; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--c-mute); }
     .room { display:flex; flex-direction:column; min-width:0; }
     .room-head { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--c-line); font-weight:600; }
     .back { display:none; background:none; border:0; color:var(--c-text); font-size:1.3rem; cursor:pointer; }
@@ -48,7 +58,18 @@
   </div>
 
   <div class="wrap" id="wrap">
-    <aside class="users" id="users"><p class="empty">Loading users...</p></aside>
+    <aside class="users">
+      <div class="me-id">Your ID <strong id="myId">...</strong></div>
+      <div class="find">
+        <form id="findForm">
+          <input id="findInput" type="text" placeholder="Search by ID" autocomplete="off" maxlength="9" aria-label="Search by user ID">
+          <button type="submit">Search</button>
+        </form>
+        <p class="find-msg" id="findMsg" hidden></p>
+      </div>
+      <div class="label">Chats</div>
+      <div id="users"><p class="empty">Search a friend's ID to start chatting.</p></div>
+    </aside>
 
     <section class="room" id="room">
       <div class="room-head">
@@ -66,48 +87,101 @@
   <script type="module">
     import { auth, db } from "./js/firebase-config.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { collection, getDocs, addDoc, query, orderBy, onSnapshot, serverTimestamp }
+    import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp }
       from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { ensureProfile } from "./js/auth.js";
+    import { ensureUserId, findByUserId, normalizeId } from "./js/handle.js";
 
     const $ = (id) => document.getElementById(id);
-    let me = null, unsub = null;
+    let me = null, unsub = null, contacts = [];
+
+    const storeKey = () => "lumio_contacts_" + me.uid;
+    function saveContacts() {
+      try { localStorage.setItem(storeKey(), JSON.stringify(contacts)); } catch {}
+    }
 
     onAuthStateChanged(auth, async (user) => {
       if (!user) { location.replace("login.html"); return; }
       me = user;
-      await loadUsers();
-    });
-
-    async function loadUsers() {
-      const box = $("users");
+      try { contacts = JSON.parse(localStorage.getItem(storeKey()) || "[]"); } catch { contacts = []; }
+      renderContacts();
       try {
-        const snap = await getDocs(collection(db, "users"));
-        box.innerHTML = "";
-        let count = 0;
-        snap.forEach((d) => {
-          if (d.id === me.uid) return;
-          count++;
-          const u = d.data();
-          const b = document.createElement("button");
-          b.className = "user";
-          const av = document.createElement("div");
-          av.className = "avatar";
-          av.textContent = (u.name || "?").charAt(0).toUpperCase();
-          const info = document.createElement("div");
-          const nm = document.createElement("strong");
-          nm.textContent = u.name || "User";
-          const em = document.createElement("small");
-          em.textContent = u.email || "";
-          info.append(nm, em);
-          b.append(av, info);
-          b.addEventListener("click", () => openChat(d.id, u.name || "User", b));
-          box.appendChild(b);
-        });
-        if (!count) box.innerHTML = '<p class="empty">No other users yet. Ask a friend to register.</p>';
+        const profile = await ensureProfile(user);
+        $("myId").textContent = await ensureUserId(user, profile.name);
       } catch (e) {
         console.error(e);
-        box.innerHTML = '<p class="empty">Could not load users. Check Firestore rules.</p>';
+        $("myId").textContent = "Unavailable";
       }
+      refreshContactNames();
+    });
+
+    // Keep saved contacts' names up to date (people may rename themselves).
+    async function refreshContactNames() {
+      let changed = false;
+      for (const c of contacts) {
+        try {
+          const h = await findByUserId(c.id);
+          if (h && h.name !== c.name) { c.name = h.name; changed = true; }
+        } catch {}
+      }
+      if (changed) { saveContacts(); renderContacts(); }
+    }
+
+    function showFindMsg(text, isError) {
+      const m = $("findMsg");
+      m.textContent = text || "";
+      m.hidden = !text;
+      m.className = "find-msg" + (isError ? " err" : "");
+    }
+
+    $("findForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id = normalizeId($("findInput").value);
+      if (!id) return showFindMsg("Enter a valid ID.", true);
+      if (id === $("myId").textContent) return showFindMsg("That's your own ID.", true);
+      showFindMsg("Searching...");
+      try {
+        const h = await findByUserId(id);
+        if (!h) return showFindMsg("No user found with that ID.", true);
+        if (!contacts.some((c) => c.uid === h.uid)) {
+          contacts.unshift({ uid: h.uid, name: h.name, id });
+          saveContacts();
+        }
+        $("findInput").value = "";
+        showFindMsg("");
+        renderContacts();
+        const btn = document.querySelector('.user[data-uid="' + h.uid + '"]');
+        if (btn) btn.click();
+      } catch (err) {
+        console.error(err);
+        showFindMsg("Search failed. Check Firestore rules.", true);
+      }
+    });
+
+    function renderContacts() {
+      const box = $("users");
+      box.innerHTML = "";
+      if (!contacts.length) {
+        box.innerHTML = '<p class="empty">Search a friend\'s ID to start chatting.</p>';
+        return;
+      }
+      contacts.forEach((c) => {
+        const b = document.createElement("button");
+        b.className = "user";
+        b.dataset.uid = c.uid;
+        const av = document.createElement("div");
+        av.className = "avatar";
+        av.textContent = (c.name || "?").charAt(0).toUpperCase();
+        const info = document.createElement("div");
+        const nm = document.createElement("strong");
+        nm.textContent = c.name || "User";
+        const idEl = document.createElement("small");
+        idEl.textContent = c.id;
+        info.append(nm, idEl);
+        b.append(av, info);
+        b.addEventListener("click", () => openChat(c.uid, c.name || "User", b));
+        box.appendChild(b);
+      });
     }
 
     function chatIdFor(other) { return [me.uid, other].sort().join("_"); }
@@ -168,5 +242,6 @@
 
     $("back").addEventListener("click", () => $("wrap").classList.remove("in-chat"));
   </script>
+  <script type="module" src="js/sidebar.js"></script>
 </body>
 </html>

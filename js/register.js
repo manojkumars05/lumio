@@ -24,6 +24,7 @@ const formError = document.getElementById("formError");
 const fields = {
   name: document.getElementById("name"),
   email: document.getElementById("email"),
+  phone: document.getElementById("phone"),
   password: document.getElementById("password"),
   confirmPassword: document.getElementById("confirmPassword"),
 };
@@ -45,6 +46,7 @@ function validate() {
   const v = {
     name: fields.name.value.trim(),
     email: fields.email.value.trim(),
+    phone: fields.phone.value.replace(/[\s-]/g, ""),
     password: fields.password.value,
     confirmPassword: fields.confirmPassword.value,
   };
@@ -55,6 +57,9 @@ function validate() {
 
   if (!v.email) errors.email = "Email is required.";
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) errors.email = "Enter a valid email address.";
+
+  if (!v.phone) errors.phone = "Mobile number is required.";
+  else if (!/^\+?[0-9]{10,15}$/.test(v.phone)) errors.phone = "Enter a valid mobile number (10-15 digits).";
 
   if (!v.password) errors.password = "Password is required.";
   else if (v.password.length < 8) errors.password = "Password must be at least 8 characters.";
@@ -108,6 +113,7 @@ form.addEventListener("submit", async (event) => {
       await setDoc(doc(db, "users", cred.user.uid), {
         name: values.name,
         email: values.email,
+        phone: values.phone,
         createdAt: serverTimestamp(),
       });
     } catch (profileErr) {

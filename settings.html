@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings - Lumio</title>
+  <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="home.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>Lumio</span></a>
+    <div class="header-right">
+      <nav class="nav" aria-label="Primary">
+        <a href="home.html">Home</a>
+        <a href="upload.html">Upload</a>
+        <a href="chat.html">Chat</a>
+        <a href="settings.html" aria-current="page">Settings</a>
+      </nav>
+      <div class="user-chip">
+        <span class="avatar" data-user-avatar aria-hidden="true">?</span>
+        <span class="user-text"><strong data-user-name>Loading...</strong><small data-user-email></small></span>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" data-logout aria-label="Log out"><span class="btn-logout-text">Log out</span></button>
+    </div>
+  </header>
+
+  <main id="main" class="container" style="max-width:560px;padding:32px 0;">
+    <h1 style="margin-bottom:20px;">Settings</h1>
+
+    <!-- Your ID -->
+    <section class="auth-card" style="margin-bottom:24px;">
+      <h2 style="margin-bottom:6px;">Your Lumio ID</h2>
+      <p class="lead" style="margin-bottom:12px;">Share this ID so friends can find you in Chat.</p>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <code id="myId" style="font-size:1.3rem;font-weight:700;letter-spacing:.04em;flex:1;">...</code>
+        <button class="btn btn-ghost btn-sm" type="button" id="copyId">Copy</button>
+      </div>
+    </section>
+
+    <!-- Change name -->
+    <section class="auth-card" style="margin-bottom:24px;">
+      <h2 style="margin-bottom:14px;">Name &amp; mobile number</h2>
+      <div id="nameMsg" class="alert" hidden></div>
+      <form id="nameForm" novalidate>
+        <div class="field">
+          <label for="newName">Name</label>
+          <input id="newName" type="text" autocomplete="name" maxlength="80" required>
+          <div class="field-error" id="newName-error" aria-live="polite"></div>
+        </div>
+        <div class="field">
+          <label for="newPhone">Mobile number</label>
+          <input id="newPhone" type="tel" autocomplete="tel" maxlength="16" placeholder="9876543210">
+          <div class="field-error" id="newPhone-error" aria-live="polite"></div>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit" id="nameBtn">
+          <span class="spinner" hidden></span><span class="btn-label">Save</span>
+        </button>
+      </form>
+    </section>
+
+    <!-- Change password -->
+    <section class="auth-card">
+      <h2 style="margin-bottom:14px;">Change password</h2>
+      <div id="pwMsg" class="alert" hidden></div>
+      <form id="pwForm" novalidate>
+        <div class="field">
+          <label for="currentPassword">Current password</label>
+          <input id="currentPassword" type="password" autocomplete="current-password" required>
+          <div class="field-error" id="currentPassword-error" aria-live="polite"></div>
+        </div>
+        <div class="field">
+          <label for="newPassword">New password</label>
+          <input id="newPassword" type="password" autocomplete="new-password" required>
+          <div class="field-error" id="newPassword-error" aria-live="polite"></div>
+        </div>
+        <div class="field">
+          <label for="confirmPassword">Confirm new password</label>
+          <input id="confirmPassword" type="password" autocomplete="new-password" required>
+          <div class="field-error" id="confirmPassword-error" aria-live="polite"></div>
+        </div>
+        <label class="check"><input type="checkbox" id="showPassword"> Show passwords</label>
+        <button class="btn btn-primary btn-block" type="submit" id="pwBtn">
+          <span class="spinner" hidden></span><span class="btn-label">Update password</span>
+        </button>
+      </form>
+    </section>
+  </main>
+
+  <script type="module" src="js/settings.js"></script>
+  <script type="module" src="js/sidebar.js"></script>
+</body>
+</html>

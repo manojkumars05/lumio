@@ -17,6 +17,11 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    // Phone: empty, or 10-15 digits (optional leading +).
+    function validPhone(value) {
+      return value is string && (value == '' || value.matches('\\+?[0-9]{10,15}'));
+    }
+
     function validTitle(value) {
       return value is string && value.size() >= 1 && value.size() <= 120;
     }
@@ -33,7 +38,8 @@ service cloud.firestore {
 
       allow create: if signedIn()
         && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt', 'userId', 'phone'])
+        && validPhone(request.resource.data.get('phone', ''))
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
         && request.resource.data.name.size() <= 80
@@ -45,6 +51,41 @@ service cloud.firestore {
         && request.auth.uid == userId
         && request.resource.data.email == resource.data.email
         && request.resource.data.createdAt == resource.data.createdAt
+        && validPhone(request.resource.data.get('phone', ''))
+        && (request.resource.data.get('userId', null) == resource.data.get('userId', null)
+            || (!('userId' in resource.data)
+                && request.resource.data.userId is string
+                && request.resource.data.userId.matches('SMR-[0-9]{5}')
+                && exists(/databases/$(database)/documents/handles/$(request.resource.data.userId))
+                && get(/databases/$(database)/documents/handles/$(request.resource.data.userId)).data.uid == request.auth.uid))
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 80;
+
+      allow delete: if false;
+    }
+
+    // ---- handles: public user IDs (SMR-12345) -> uid + name ---------------
+    // A signed-in user can look up ONE ID (get) but cannot list all of them.
+    match /handles/{handleId} {
+      allow get: if signedIn();
+      allow list: if false;
+
+      // Only while the user has no ID yet, and only for themselves.
+      allow create: if signedIn()
+        && handleId.matches('SMR-[0-9]{5}')
+        && request.resource.data.keys().hasOnly(['uid', 'name'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 80
+        && !('userId' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data);
+
+      // Owner may change the displayed name only.
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'name'])
+        && request.resource.data.uid == resource.data.uid
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
         && request.resource.data.name.size() <= 80;
@@ -84,6 +125,23 @@ service cloud.firestore {
       allow update, delete: if isAdmin()
         && resource.data.uploadedBy == request.auth.uid;
     }
+
+    // ---- private chats ----
+  match /chats/{chatId}/messages/{msgId} {
+  allow read: if signedIn()
+    && request.auth.uid in chatId.split('_');
+
+  allow create: if signedIn()
+    && request.auth.uid in chatId.split('_')
+    && request.resource.data.keys().hasOnly(['text', 'senderId', 'createdAt'])
+    && request.resource.data.senderId == request.auth.uid
+    && request.resource.data.text is string
+    && request.resource.data.text.size() >= 1
+    && request.resource.data.text.size() <= 1000
+    && request.resource.data.createdAt == request.time;
+
+  allow update, delete: if false;
+}
 
     // Everything else is closed by default.
     match /{document=**} {
