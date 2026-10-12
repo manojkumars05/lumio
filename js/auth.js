@@ -49,6 +49,7 @@ export function redirectIfLoggedIn(isBusy = () => false) {
 
 /** Sign out and return to the login page. */
 export async function logout() {
+  try { localStorage.removeItem("lumio_user"); } catch {}
   try {
     await signOut(auth);
   } finally {
@@ -87,11 +88,26 @@ export function renderUserChip(user, profile) {
   document.querySelectorAll("[data-user-name]").forEach((el) => (el.textContent = name));
   document.querySelectorAll("[data-user-first-name]").forEach((el) => (el.textContent = name.split(/\s+/)[0]));
   document.querySelectorAll("[data-user-email]").forEach((el) => (el.textContent = user.email || ""));
-  document.querySelectorAll("[data-user-avatar]").forEach((el) => (el.textContent = initials));
+  document.querySelectorAll("[data-user-avatar]").forEach((el) => {
+    el.textContent = initials;
+    el.style.backgroundImage = "";
+  });
+  const since = formatDate(profile?.createdAt) || formatDate(user.metadata?.creationTime);
   document.querySelectorAll("[data-user-since]").forEach((el) => {
-    const since = formatDate(profile?.createdAt) || formatDate(user.metadata?.creationTime);
     el.textContent = since ? `Member since ${since}` : "";
   });
+  cacheUser({ uid: user.uid, name, email: user.email || "", since: since || "", userId: profile?.userId });
+}
+
+/** Remember the user locally so the next page load can show name/ID instantly (js/boot.js). */
+export function cacheUser(fields) {
+  try {
+    let old = JSON.parse(localStorage.getItem("lumio_user") || "null") || {};
+    if (old.uid !== fields.uid) old = {};
+    const merged = { ...old, ...fields };
+    if (!fields.userId) merged.userId = old.userId;
+    localStorage.setItem("lumio_user", JSON.stringify(merged));
+  } catch {}
 }
 
 /** Turns Firebase error codes into messages a human can act on. */

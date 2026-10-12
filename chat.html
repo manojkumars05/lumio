@@ -3,6 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js">
+  <link rel="modulepreload" href="js/firebase-config.js">
   <title>Chat - Lumio</title>
   <link rel="stylesheet" href="css/style.css">
   <style>
@@ -19,6 +24,7 @@
     .user:hover, .user.active { background:var(--c-panel); }
     .avatar { width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#ff6a88,#6c4cf0); display:grid; place-items:center; font-weight:700; flex:none; }
     .user .meta { min-width:0; flex:1; }
+    .user .meta strong { display:block; }
     .user .meta strong, .user .meta small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .user .badge { min-width:22px; height:22px; padding:0 6px; border-radius:11px; background:#ff4d7a; color:#fff; font-size:.75rem; font-weight:700; display:grid; place-items:center; flex:none; }
     .msg time .seen { color:#9fe7ff; font-weight:600; }
@@ -57,6 +63,46 @@
       body.chat-open .topbar, body.chat-open .lm-toggle { display:none; }
       .msg { max-width:88%; }
     }
+  
+    .find input { text-transform:none; }
+    .avatar { background-size:cover; background-position:center; overflow:hidden; }
+    .avatar.sm { width:34px; height:34px; font-size:.9rem; }
+    .room-head .who { min-width:0; flex:1; line-height:1.25; }
+    .room-head .who strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .room-head .who small { display:block; font-weight:400; font-size:.76rem; color:var(--c-mute); }
+    .room-head .who small.on { color:#5eead4; }
+    .msg { position:relative; }
+    .msg:not(.gone) { padding-right:26px; }
+    .msg .more { position:absolute; top:2px; right:4px; width:24px; height:24px; border:0; border-radius:50%; background:transparent; color:rgba(255,255,255,.55); cursor:pointer; font-size:1.1rem; line-height:1; opacity:0; }
+    .msg:hover .more, .msg:focus-within .more { opacity:1; }
+    @media (hover:none) { .msg .more { opacity:.7; } }
+    .msg.me .more, .msg:not(.me) .more { }
+    .msg .quote { border-left:3px solid #a893ff; background:rgba(0,0,0,.22); border-radius:8px; padding:5px 9px; margin:0 0 6px; font-size:.82rem; cursor:pointer; overflow:hidden; }
+    .msg .quote b { display:block; font-size:.74rem; color:#cbbfff; }
+    .msg .quote span { display:block; opacity:.85; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .msg .fwd { font-size:.72rem; opacity:.7; font-style:italic; margin-bottom:3px; }
+    .msg .pic { display:block; max-width:100%; width:240px; border-radius:12px; margin:2px 0 4px; cursor:zoom-in; background:#00000033; }
+    .msg.gone { opacity:.7; font-style:italic; }
+    .msg.flash { animation:flash 1.2s ease; }
+    @keyframes flash { 0%,60% { box-shadow:0 0 0 3px #fbbf24; } 100% { box-shadow:0 0 0 0 transparent; } }
+    .menu { position:fixed; z-index:200; min-width:170px; background:#231a52; border:1px solid var(--c-line); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.5); overflow:hidden; }
+    .menu button { display:block; width:100%; text-align:left; padding:12px 16px; background:none; border:0; color:var(--c-text); font:inherit; cursor:pointer; }
+    .menu button:hover { background:var(--c-panel); }
+    .menu button.danger { color:#ff8a8a; }
+    .replybar { flex:none; display:flex; align-items:center; gap:10px; padding:8px 14px; border-top:1px solid var(--c-line); background:var(--c-panel); font-size:.85rem; }
+    .replybar .rtxt { flex:1; min-width:0; border-left:3px solid #a893ff; padding-left:8px; }
+    .replybar b { display:block; font-size:.74rem; color:#cbbfff; }
+    .replybar span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--c-mute); }
+    .replybar button { background:none; border:0; color:var(--c-text); font-size:1.2rem; cursor:pointer; }
+    .composer .attach { padding:0 12px; font-size:1.2rem; background:var(--c-panel); border:1px solid var(--c-line); }
+    .overlay { position:fixed; inset:0; z-index:300; background:rgba(5,3,20,.78); display:grid; place-items:center; padding:16px; }
+    .overlay[hidden] { display:none; }
+    .sheet { width:min(380px,100%); max-height:80vh; overflow-y:auto; background:#1a1440; border:1px solid var(--c-line); border-radius:16px; }
+    .sheet h3 { margin:0; padding:14px 16px; font-size:1rem; border-bottom:1px solid var(--c-line); }
+    .sheet .user { border-bottom:1px solid var(--c-line); }
+    .sheet .cancel { display:block; width:100%; padding:14px; background:none; border:0; color:var(--c-mute); font:inherit; cursor:pointer; }
+    #lightbox img { max-width:100%; max-height:92vh; border-radius:10px; }
+    .toast { position:fixed; left:50%; bottom:90px; transform:translateX(-50%); z-index:400; background:#231a52; border:1px solid var(--c-line); padding:10px 16px; border-radius:20px; font-size:.88rem; }
   </style>
 </head>
 <body>
@@ -72,21 +118,26 @@
       </div>
       <div class="find">
         <form id="findForm">
-          <input id="findInput" type="text" placeholder="Search by ID" autocomplete="off" maxlength="9" aria-label="Search by user ID">
-          <button type="submit">Search</button>
+          <input id="findInput" type="text" placeholder="Search chats, or enter an ID" autocomplete="off" maxlength="40" aria-label="Search chats or enter a user ID">
+          <button type="submit">Find</button>
         </form>
         <p class="find-msg" id="findMsg" hidden></p>
       </div>
       <div class="label">Chats</div>
-      <div id="users"><p class="empty">Search a friend's ID to start chatting.</p></div>
+      <div id="users"><p class="empty">Enter a friend's ID (SMR-12345) and press Find to start chatting.</p></div>
     </aside>
 
     <section class="room" id="room">
       <div class="room-head">
         <button class="back" id="back" aria-label="Back to users">&larr;</button>
-        <span id="peerName">Pick someone to chat with</span>
+        <div class="avatar sm" id="peerAvatar" hidden></div>
+        <div class="who"><strong id="peerName">Pick someone to chat with</strong><small id="peerStatus" hidden></small></div>
       </div>
       <div class="msgs" id="msgs"><p class="empty">Choose a person from the list to start chatting.</p></div>
+      <div class="replybar" id="replyBar" hidden>
+        <div class="rtxt"><b id="replyWho"></b><span id="replyTxt"></span></div>
+        <button type="button" id="replyCancel" aria-label="Cancel reply">&times;</button>
+      </div>
       <form class="composer" id="composer" hidden>
         <input id="text" type="text" maxlength="1000" placeholder="Type a message" autocomplete="off">
         <button type="submit" id="send">Send</button>
@@ -94,37 +145,48 @@
     </section>
   </div>
 
+  <div class="overlay" id="fwdModal" hidden>
+    <div class="sheet" role="dialog" aria-label="Forward message">
+      <h3>Forward to...</h3>
+      <div id="fwdList"></div>
+      <button class="cancel" id="fwdCancel" type="button">Cancel</button>
+    </div>
+  </div>
+
+  <script src="js/boot.js"></script>
   <script type="module">
     import { auth, db } from "./js/firebase-config.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { collection, addDoc, setDoc, doc, increment, query, where, orderBy, onSnapshot, serverTimestamp }
+    import { collection, addDoc, setDoc, updateDoc, deleteField, doc, increment, query, where, orderBy, onSnapshot, serverTimestamp }
       from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { ensureProfile } from "./js/auth.js";
+    import { ensureProfile, cacheUser } from "./js/auth.js";
     import { ensureUserId, findByUserId, normalizeId } from "./js/handle.js";
 
     const $ = (id) => document.getElementById(id);
-    let me = null, unsub = null, unsubInbox = null, contacts = [];
+    let me = null, unsub = null, unsubInbox = null, unsubPeer = null, contacts = [];
     let activeUid = null;
     let firstChatSnap = true;
     let unreadTotal = 0;
+    let lastMsgs = [];          // messages of the open chat
+    let replyTo = null;         // message being replied to
+    let filterText = "";        // chat-list search
+    let peer = {};
+    let typingUntil = 0, lastTypingVal = 0, lastTypingSent = 0;
+    const meta = {};            // uid -> latest info from chat docs
     const baseTitle = document.title;
-    const meta = {};   // uid -> { text, sender, ms }  latest message info from chat docs
-    let lastMsgs = []; // messages of the open chat (for re-rendering ticks)
 
     const storeKey = () => "lumio_contacts_" + me.uid;
-    function saveContacts() {
-      try { localStorage.setItem(storeKey(), JSON.stringify(contacts)); } catch {}
+    const chatIdFor = (other) => [me.uid, other].sort().join("_");
+    const contactOf = (uid) => contacts.find((c) => c.uid === uid);
+    function saveContacts() { try { localStorage.setItem(storeKey(), JSON.stringify(contacts)); } catch {} }
+    function toast(text) {
+      const t = document.createElement("div");
+      t.className = "toast"; t.textContent = text; document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
     }
-
-    // Tell the other person I have read the chat (resets my unread counter).
-    async function markRead(uid) {
-      if (!meta[uid]) return;               // chat doc does not exist yet
-      try {
-        await setDoc(doc(db, "chats", chatIdFor(uid)), {
-          unread: { [me.uid]: 0 },
-          seenAt: { [me.uid]: serverTimestamp() }
-        }, { merge: true });
-      } catch (e) { console.error(e); }
+    function paintAvatar(el, name) {
+      el.textContent = (name || "?").charAt(0).toUpperCase();
+      el.style.backgroundImage = "";
     }
 
     // ---- keep the page exactly as tall as the visible area (keyboard open) ----
@@ -139,14 +201,13 @@
     }
     fitViewport();
 
-    // ---- notifications (work while Lumio is open in the browser / background) ----
+    // ---- notifications (while Lumio is open in the browser / background) ----
     let swReg = null;
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").then((r) => { swReg = r; }).catch(() => {});
     }
     function updateNotifBtn() {
-      const b = $("notifBtn");
-      b.hidden = !("Notification" in window) || Notification.permission !== "default";
+      $("notifBtn").hidden = !("Notification" in window) || Notification.permission !== "default";
     }
     $("notifBtn").addEventListener("click", async () => {
       try { await Notification.requestPermission(); } catch {}
@@ -154,57 +215,81 @@
     });
     updateNotifBtn();
 
-    function updateTitle() {
-      unreadTotal = contacts.reduce((n, c) => n + unreadOf(c.uid), 0);
-      document.title = unreadTotal ? "(" + unreadTotal + ") " + baseTitle : baseTitle;
-    }
-    document.addEventListener("visibilitychange", () => {
-      if (!document.hidden && activeUid) markRead(activeUid);
-    });
-
     async function notifyMessage(uid, text) {
-      const c = contacts.find((x) => x.uid === uid);
+      const c = contactOf(uid);
       const title = (c && c.name) || "New message";
       try { navigator.vibrate && navigator.vibrate(120); } catch {}
       if (!("Notification" in window) || Notification.permission !== "granted") return;
       const opts = { body: text || "New message", icon: "assets/images/logo.svg", tag: "lumio-" + uid, renotify: true };
       try {
         const reg = swReg || (navigator.serviceWorker && await navigator.serviceWorker.getRegistration());
-        if (reg) await reg.showNotification(title, opts);
-        else new Notification(title, opts);
+        if (reg) await reg.showNotification(title, opts); else new Notification(title, opts);
       } catch (e) { console.error(e); }
     }
+
+    const unreadOf = (uid) => {
+      const n = (meta[uid] && meta[uid].unread) || 0;
+      return activeUid === uid && !document.hidden ? 0 : n;
+    };
+    function updateTitle() {
+      const total = contacts.reduce((n, c) => n + unreadOf(c.uid), 0);
+      document.title = total ? "(" + total + ") " + baseTitle : baseTitle;
+    }
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && activeUid) markRead(activeUid); });
+
+    // Tell the other person I have read the chat (resets my unread counter).
+    async function markRead(uid) {
+      if (!meta[uid]) return;
+      try {
+        await setDoc(doc(db, "chats", chatIdFor(uid)), {
+          unread: { [me.uid]: 0 }, seenAt: { [me.uid]: serverTimestamp() }
+        }, { merge: true });
+      } catch (e) { console.error(e); }
+    }
+
+    // Show the last-known chat list + my ID instantly (before Firebase answers).
+    try {
+      const cached = JSON.parse(localStorage.getItem("lumio_user") || "null");
+      if (cached && cached.uid) {
+        contacts = JSON.parse(localStorage.getItem("lumio_contacts_" + cached.uid) || "[]");
+        if (cached.userId) $("myId").textContent = cached.userId;
+        renderContacts();
+      }
+    } catch {}
 
     onAuthStateChanged(auth, async (user) => {
       if (!user) { location.replace("login.html"); return; }
       me = user;
       try { contacts = JSON.parse(localStorage.getItem(storeKey()) || "[]"); } catch { contacts = []; }
       renderContacts();
-      listenForChats();               // start live updates right away
+      listenForChats();
       try {
         const profile = await ensureProfile(user);
-        $("myId").textContent = await ensureUserId(user, profile.name);
+        // ensureProfile already read the profile doc - reuse its userId (saves a round trip).
+        const myId = profile.userId || await ensureUserId(user, profile.name);
+        $("myId").textContent = myId;
+        cacheUser({ uid: user.uid, name: profile.name, email: user.email || "", userId: myId });
       } catch (e) {
         console.error(e);
         $("myId").textContent = "Unavailable";
       }
-      refreshContactNames();
+      refreshContactInfo();
     });
 
-    // Watch every chat I am a member of: new chats from other people show up
-    // automatically, and the list shows the latest message + unread dot live.
+    // Watch every chat I am in: new chats from others appear automatically; the
+    // list shows last message + unread count; typing + seen ticks are live.
     function listenForChats() {
       if (unsubInbox) unsubInbox();
       const q = query(collection(db, "chats"), where("members", "array-contains", me.uid));
       unsubInbox = onSnapshot(q, async (snap) => {
         let changed = false;
         const incoming = [];
+        const toMs = (t) => (t && t.toMillis ? t.toMillis() : 0);
         for (const d of snap.docs) {
           const data = d.data();
           const other = (data.members || []).find((u) => u !== me.uid);
           if (!other) continue;
           const ms = data.updatedAt && data.updatedAt.toMillis ? data.updatedAt.toMillis() : Date.now();
-          const toMs = (t) => (t && t.toMillis ? t.toMillis() : 0);
           const prevUnread = meta[other] ? meta[other].unread : 0;
           meta[other] = {
             text: data.lastText || "", sender: data.lastSender || "", ms,
@@ -212,19 +297,24 @@
             theirSeenMs: toMs(data.seenAt && data.seenAt[other])
           };
           if (!firstChatSnap && meta[other].unread > prevUnread && data.lastSender === other
-              && !(activeUid === other && !document.hidden)) {
-            incoming.push([other, data.lastText]);
-          }
-          // I am looking at this chat right now -> mark as read.
+              && !(activeUid === other && !document.hidden)) incoming.push([other, data.lastText]);
           if (activeUid === other && !document.hidden && meta[other].unread > 0) markRead(other);
 
-          if (!contacts.some((c) => c.uid === other)) {
+          // typing indicator
+          const tv = (data.typing && data.typing[other]) || 0;
+          if (activeUid === other) {
+            if (!tv) typingUntil = 0;
+            else if (tv !== lastTypingVal) { typingUntil = Date.now() + 4000; setTimeout(renderStatus, 4100); }
+            lastTypingVal = tv;
+          }
+
+          if (!contactOf(other)) {
             const theirId = data.ids && data.ids[other];
             if (!theirId) continue;
             try {
               const h = await findByUserId(theirId);
               if (h && h.uid === other) {
-                contacts.unshift({ uid: other, name: h.name, id: theirId });
+                contacts.unshift({ uid: other, name: h.name, id: theirId, photo: h.photo || "" });
                 changed = true;
               }
             } catch (e) { console.error(e); }
@@ -232,22 +322,21 @@
         }
         if (changed) saveContacts();
         renderContacts();
-        if (activeUid) renderMsgs();        // refresh ✓ / ✓✓ ticks
-        // Notify only when the unread count actually grew (a new message).
+        if (activeUid) { renderMsgs(); renderStatus(); }
         incoming.forEach(([uid, text]) => notifyMessage(uid, text));
         firstChatSnap = false;
       }, (err) => console.error("Chat list listener failed (check Firestore rules):", err));
     }
 
-    // Keep saved contacts' names up to date (people may rename themselves).
-    async function refreshContactNames() {
+    // Keep saved contacts' names + photos up to date.
+    async function refreshContactInfo() {
       let changed = false;
-      for (const c of contacts) {
+      await Promise.all(contacts.map(async (c) => {
         try {
           const h = await findByUserId(c.id);
-          if (h && h.name !== c.name) { c.name = h.name; changed = true; }
+          if (h && (h.name !== c.name || (h.photo || "") !== (c.photo || ""))) { c.name = h.name; c.photo = h.photo || ""; changed = true; }
         } catch {}
-      }
+      }));
       if (changed) { saveContacts(); renderContacts(); }
     }
 
@@ -258,86 +347,119 @@
       m.className = "find-msg" + (isError ? " err" : "");
     }
 
+    // Typing in the box filters your chats (by name or ID).
+    $("findInput").addEventListener("input", () => {
+      filterText = $("findInput").value.trim().toLowerCase();
+      showFindMsg("");
+      renderContacts();
+    });
+
+    // Pressing Find with a valid ID looks that user up and starts a chat.
     $("findForm").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const id = normalizeId($("findInput").value);
-      if (!id) return showFindMsg("Enter a valid ID.", true);
+      const raw = $("findInput").value.trim();
+      if (!raw) return;
+      const id = normalizeId(raw);
+      if (!id) {
+        const any = contacts.some((c) => (c.name || "").toLowerCase().includes(filterText) || (c.id || "").toLowerCase().includes(filterText));
+        return showFindMsg(any ? "Showing matching chats. To add someone new, enter their ID like SMR-12345." : "No chat matches. To add someone new, enter their ID like SMR-12345.", !any);
+      }
       if (id === $("myId").textContent) return showFindMsg("That's your own ID.", true);
       showFindMsg("Searching...");
       try {
         const h = await findByUserId(id);
         if (!h) return showFindMsg("No user found with that ID.", true);
-        if (!contacts.some((c) => c.uid === h.uid)) {
-          contacts.unshift({ uid: h.uid, name: h.name, id });
-          saveContacts();
-        }
-        $("findInput").value = "";
+        if (!contactOf(h.uid)) { contacts.unshift({ uid: h.uid, name: h.name, id, photo: h.photo || "" }); saveContacts(); }
+        $("findInput").value = ""; filterText = "";
         showFindMsg("");
         renderContacts();
-        const btn = document.querySelector('.user[data-uid="' + h.uid + '"]');
-        if (btn) btn.click();
+        openChat(h.uid);
       } catch (err) {
         console.error(err);
         showFindMsg("Search failed. Check Firestore rules.", true);
       }
     });
 
-    const unreadOf = (uid) => {
-      const n = (meta[uid] && meta[uid].unread) || 0;
-      return activeUid === uid && !document.hidden ? 0 : n;
-    };
-
     function renderContacts() {
       const box = $("users");
       box.innerHTML = "";
       if (!contacts.length) {
-        box.innerHTML = '<p class="empty">Search a friend\'s ID to start chatting.</p>';
+        box.innerHTML = '<p class="empty">Enter a friend\'s ID (SMR-12345) and press Find to start chatting.</p>';
+        updateTitle();
         return;
       }
-      const sorted = [...contacts].sort((a, b) => ((meta[b.uid] && meta[b.uid].ms) || 0) - ((meta[a.uid] && meta[a.uid].ms) || 0));
-      sorted.forEach((c) => {
-        const b = document.createElement("button");
-        b.className = "user" + (c.uid === activeUid ? " active" : "");
-        b.dataset.uid = c.uid;
-        const av = document.createElement("div");
-        av.className = "avatar";
-        av.textContent = (c.name || "?").charAt(0).toUpperCase();
-        const info = document.createElement("div");
-        info.className = "meta";
-        const nm = document.createElement("strong");
-        nm.textContent = c.name || "User";
-        const sub = document.createElement("small");
-        sub.textContent = (meta[c.uid] && meta[c.uid].text) || c.id;
-        info.append(nm, sub);
-        b.append(av, info);
-        const n = unreadOf(c.uid);
-        if (n > 0) { const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = n > 99 ? "99+" : String(n); b.appendChild(badge); }
-        b.addEventListener("click", () => openChat(c.uid, c.name || "User"));
-        box.appendChild(b);
-      });
+      const list = contacts.filter((c) => !filterText || (c.name || "").toLowerCase().includes(filterText) || (c.id || "").toLowerCase().includes(filterText));
+      if (!list.length) { box.innerHTML = '<p class="empty">No chats match "' + filterText.replace(/[<>&"]/g, "") + '".</p>'; updateTitle(); return; }
+      list.sort((a, b) => ((meta[b.uid] && meta[b.uid].ms) || 0) - ((meta[a.uid] && meta[a.uid].ms) || 0));
+      list.forEach((c) => box.appendChild(contactRow(c, () => openChat(c.uid), true)));
       updateTitle();
     }
 
-    function chatIdFor(other) { return [me.uid, other].sort().join("_"); }
+    function contactRow(c, onClick, showBadge) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "user" + (showBadge && c.uid === activeUid ? " active" : "");
+      b.dataset.uid = c.uid;
+      const av = document.createElement("div");
+      av.className = "avatar";
+      paintAvatar(av, c.name, c.photo);
+      const info = document.createElement("div");
+      info.className = "meta";
+      const nm = document.createElement("strong");
+      nm.textContent = c.name || "User";
+      const sub = document.createElement("small");
+      sub.textContent = showBadge ? ((meta[c.uid] && meta[c.uid].text) || c.id) : c.id;
+      info.append(nm, sub);
+      b.append(av, info);
+      const n = showBadge ? unreadOf(c.uid) : 0;
+      if (n > 0) { const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = n > 99 ? "99+" : String(n); b.appendChild(badge); }
+      b.addEventListener("click", onClick);
+      return b;
+    }
 
-    function openChat(otherUid, name) {
+    // ---- header status: typing... ----
+    function renderStatus() {
+      const s = $("peerStatus");
+      if (!activeUid) { s.hidden = true; return; }
+      s.hidden = false;
+      s.className = "";
+      if (Date.now() < typingUntil) { s.textContent = "typing..."; s.className = "on"; }
+      else { s.textContent = ""; s.hidden = true; }
+    }
+    setInterval(renderStatus, 20000);
+
+    function openChat(otherUid) {
+      const c = contactOf(otherUid);
+      if (!c) return;
       activeUid = otherUid;
-      lastMsgs = [];
+      lastMsgs = []; peer = {}; typingUntil = 0; lastTypingVal = 0;
+      clearReply();
       renderContacts();
       markRead(otherUid);
-      $("peerName").textContent = name;
+      $("peerName").textContent = c.name || "User";
+      $("peerAvatar").hidden = false;
+      paintAvatar($("peerAvatar"), c.name, c.photo);
+      renderStatus();
       $("composer").hidden = false;
       $("wrap").classList.add("in-chat");
       document.body.classList.add("chat-open");
+
+      if (unsubPeer) unsubPeer();
+      unsubPeer = onSnapshot(doc(db, "handles", c.id), (snap) => {
+        if (!snap.exists() || activeUid !== otherUid) return;
+        const h = snap.data();
+        if ((h.photo || "") !== (c.photo || "")) { c.photo = h.photo || ""; saveContacts(); paintAvatar($("peerAvatar"), c.name, c.photo); renderContacts(); }
+        renderStatus();
+      }, () => {});
+
       if (unsub) unsub();
-      const cid = chatIdFor(otherUid);
-      $("composer").dataset.cid = cid;
-      const q = query(collection(db, "chats", cid, "messages"), orderBy("createdAt"));
+      const q = query(collection(db, "chats", chatIdFor(otherUid), "messages"), orderBy("createdAt"));
       unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
         lastMsgs = snap.docs.map((d) => {
           const m = d.data({ serverTimestamps: "estimate" });
-          return { text: m.text, senderId: m.senderId, ms: m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0,
-                   pending: d.metadata.hasPendingWrites };
+          return { id: d.id, text: m.text || "", senderId: m.senderId, replyTo: m.replyTo || null,
+                   forwarded: !!m.forwarded, deleted: !!m.deleted,
+                   ms: m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0, pending: d.metadata.hasPendingWrites };
         });
         renderMsgs(snap.metadata.hasPendingWrites);
       }, (err) => {
@@ -346,25 +468,52 @@
       });
     }
 
+    const previewOf = (m) => m.deleted ? "Deleted message" : (m.text || "");
+
     function renderMsgs(forceScroll) {
       const list = $("msgs");
       const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 120;
       const theirSeen = (activeUid && meta[activeUid] && meta[activeUid].theirSeenMs) || 0;
+      const peerName = (contactOf(activeUid) || {}).name || "User";
       list.innerHTML = "";
       if (!lastMsgs.length) list.innerHTML = '<p class="empty">No messages yet. Say hi!</p>';
       lastMsgs.forEach((m) => {
-        const el = document.createElement("div");
         const mine = m.senderId === me.uid;
-        el.className = "msg" + (mine ? " me" : "");
-        el.textContent = m.text;
+        const el = document.createElement("div");
+        el.className = "msg" + (mine ? " me" : "") + (m.deleted ? " gone" : "");
+        el.dataset.id = m.id;
+
+        if (m.deleted) {
+          el.appendChild(document.createTextNode("🚫 This message was deleted"));
+        } else {
+          if (m.forwarded) { const f = document.createElement("div"); f.className = "fwd"; f.textContent = "↪ Forwarded"; el.appendChild(f); }
+          if (m.replyTo) {
+            const q = document.createElement("div"); q.className = "quote";
+            const who = document.createElement("b"); who.textContent = m.replyTo.senderId === me.uid ? "You" : peerName;
+            const tx = document.createElement("span"); tx.textContent = m.replyTo.text || "Message";
+            q.append(who, tx);
+            q.addEventListener("click", () => {
+              const target = list.querySelector('[data-id="' + m.replyTo.id + '"]');
+              if (target) { target.scrollIntoView({ block: "center", behavior: "smooth" }); target.classList.add("flash"); setTimeout(() => target.classList.remove("flash"), 1300); }
+              else toast("Original message not found");
+            });
+            el.appendChild(q);
+          }
+          if (m.text) el.appendChild(document.createTextNode(m.text));
+          if (!m.pending) {
+            const more = document.createElement("button");
+            more.type = "button"; more.className = "more"; more.setAttribute("aria-label", "Message options"); more.textContent = "⋯";
+            more.addEventListener("click", (ev) => { ev.stopPropagation(); openMenu(more, m, mine); });
+            el.appendChild(more);
+          }
+        }
         const t = document.createElement("time");
-        const clock = m.ms ? new Date(m.ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-        t.textContent = clock;
-        if (mine) {
+        t.textContent = m.ms ? new Date(m.ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+        if (mine && !m.deleted) {
           const tick = document.createElement("span");
-          if (m.pending) { tick.textContent = " 🕓"; }
+          if (m.pending) tick.textContent = " 🕓";
           else if (m.ms && theirSeen >= m.ms) { tick.textContent = " ✓✓ Seen"; tick.className = "seen"; }
-          else { tick.textContent = " ✓ Sent"; }
+          else tick.textContent = " ✓ Sent";
           t.appendChild(tick);
         }
         el.appendChild(t);
@@ -373,41 +522,118 @@
       if (nearBottom || forceScroll) list.scrollTop = list.scrollHeight;
     }
 
+    // ---- message menu: Reply / Forward / Delete ----
+    function closeMenu() { document.querySelectorAll(".menu").forEach((m) => m.remove()); }
+    document.addEventListener("click", closeMenu);
+    window.addEventListener("resize", closeMenu);
+    function openMenu(anchor, m, mine) {
+      closeMenu();
+      const menu = document.createElement("div");
+      menu.className = "menu";
+      const add = (label, fn, danger) => {
+        const b = document.createElement("button"); b.type = "button"; b.textContent = label;
+        if (danger) b.className = "danger";
+        b.addEventListener("click", (e) => { e.stopPropagation(); closeMenu(); fn(); });
+        menu.appendChild(b);
+      };
+      add("↩ Reply", () => startReply(m));
+      add("↪ Forward", () => openForward(m));
+      if (mine) add("🗑 Delete for everyone", () => deleteMessage(m), true);
+      document.body.appendChild(menu);
+      const r = anchor.getBoundingClientRect();
+      const mw = menu.offsetWidth, mh = menu.offsetHeight;
+      let left = Math.min(Math.max(8, r.right - mw), window.innerWidth - mw - 8);
+      let top = r.bottom + 4;
+      if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 4);
+      menu.style.left = left + "px"; menu.style.top = top + "px";
+    }
+
+    // ---- reply ----
+    function startReply(m) {
+      replyTo = { id: m.id, senderId: m.senderId, text: (m.text || "").slice(0, 100) };
+      $("replyWho").textContent = m.senderId === me.uid ? "You" : ((contactOf(activeUid) || {}).name || "User");
+      $("replyTxt").textContent = m.text || "";
+      $("replyBar").hidden = false;
+      $("text").focus();
+    }
+    function clearReply() { replyTo = null; $("replyBar").hidden = true; }
+    $("replyCancel").addEventListener("click", clearReply);
+
+    // ---- delete for everyone ----
+    async function deleteMessage(m) {
+      if (!confirm("Delete this message for everyone?")) return;
+      try {
+        await updateDoc(doc(db, "chats", chatIdFor(activeUid), "messages", m.id), { deleted: true, text: "" });
+      } catch (e) { console.error(e); toast("Could not delete. Check Firestore rules."); }
+    }
+
+    // ---- forward ----
+    let forwarding = null;
+    function openForward(m) {
+      forwarding = m;
+      const box = $("fwdList");
+      box.innerHTML = "";
+      contacts.forEach((c) => box.appendChild(contactRow(c, async () => {
+        $("fwdModal").hidden = true;
+        const msg = forwarding; forwarding = null;
+        try {
+          await sendTo(c.uid, { text: msg.text, forwarded: true });
+          toast("Forwarded to " + (c.name || "user"));
+        } catch (e) { console.error(e); toast("Could not forward."); }
+      }, false)));
+      if (!contacts.length) box.innerHTML = '<p class="empty">No chats to forward to.</p>';
+      $("fwdModal").hidden = false;
+    }
+    $("fwdCancel").addEventListener("click", () => { $("fwdModal").hidden = true; });
+    $("fwdModal").addEventListener("click", (e) => { if (e.target.id === "fwdModal") $("fwdModal").hidden = true; });
+
+    // ---- sending (text, reply, forward) ----
+    async function sendTo(otherUid, p) {
+      const cid = chatIdFor(otherUid);
+      const preview = p.text;
+      await setDoc(doc(db, "chats", cid), {
+        members: [me.uid, otherUid].sort(),
+        ids: { [me.uid]: $("myId").textContent },
+        lastText: preview.slice(0, 80),
+        lastSender: me.uid,
+        unread: { [otherUid]: increment(1), [me.uid]: 0 },
+        seenAt: { [me.uid]: serverTimestamp() },
+        typing: { [me.uid]: 0 },
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      const data = { text: p.text || "", senderId: me.uid, createdAt: serverTimestamp() };
+      if (p.replyTo) data.replyTo = p.replyTo;
+      if (p.forwarded) data.forwarded = true;
+      await addDoc(collection(db, "chats", cid, "messages"), data);
+    }
+
     $("composer").addEventListener("submit", async (e) => {
       e.preventDefault();
       const input = $("text");
       const text = input.value.trim();
-      const cid = $("composer").dataset.cid;
-      if (!text || !cid) return;
-      input.value = "";               // clear immediately, keep keyboard open
-      input.focus();
-      try {
-        const otherUid = cid.split("_").find((u) => u !== me.uid);
-        // Chat header doc: lets the other person see this chat in THEIR list.
-        await setDoc(doc(db, "chats", cid), {
-          members: [me.uid, otherUid].sort(),
-          ids: { [me.uid]: $("myId").textContent },
-          lastText: text.slice(0, 80),
-          lastSender: me.uid,
-          unread: { [otherUid]: increment(1), [me.uid]: 0 },
-          seenAt: { [me.uid]: serverTimestamp() },
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-        await addDoc(collection(db, "chats", cid, "messages"), {
-          text, senderId: me.uid, createdAt: serverTimestamp()
-        });
-      } catch (err) {
-        console.error(err);
-        input.value = text;
-        alert("Message not sent. Check Firestore rules.");
-      }
+      if (!text || !activeUid) return;
+      const target = activeUid, rp = replyTo;
+      input.value = ""; clearReply(); input.focus();   // keep the keyboard open
+      try { await sendTo(target, { text, replyTo: rp }); }
+      catch (err) { console.error(err); input.value = text; toast("Message not sent. Check Firestore rules."); }
+    });
+
+    // typing indicator (only after the chat doc exists)
+    $("text").addEventListener("input", () => {
+      if (!activeUid || !meta[activeUid] || Date.now() - lastTypingSent < 2500) return;
+      lastTypingSent = Date.now();
+      setDoc(doc(db, "chats", chatIdFor(activeUid)), { typing: { [me.uid]: Date.now() } }, { merge: true }).catch(() => {});
     });
 
     $("back").addEventListener("click", () => {
       activeUid = null;
       if (unsub) { unsub(); unsub = null; }
+      if (unsubPeer) { unsubPeer(); unsubPeer = null; }
+      clearReply();
       $("wrap").classList.remove("in-chat");
       document.body.classList.remove("chat-open");
+      $("peerAvatar").hidden = true; $("peerStatus").hidden = true;
+      $("peerName").textContent = "Pick someone to chat with";
       renderContacts();
     });
   </script>

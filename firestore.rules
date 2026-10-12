@@ -65,6 +65,42 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---- supportTickets: users write + read their own; admins read all and reply ----
+    match /supportTickets/{ticketId} {
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'subject', 'message', 'status', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.name is string && request.resource.data.name.size() <= 80
+        && request.resource.data.email is string && request.resource.data.email.size() <= 200
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() >= 1 && request.resource.data.subject.size() <= 100
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 1 && request.resource.data.message.size() <= 2000
+        && request.resource.data.status == 'open'
+        && request.resource.data.createdAt == request.time;
+
+      // Only an admin can answer: adds reply + status + repliedAt, nothing else changes.
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reply', 'status', 'repliedAt'])
+        && request.resource.data.reply is string
+        && request.resource.data.reply.size() >= 1 && request.resource.data.reply.size() <= 2000
+        && request.resource.data.status == 'answered'
+        && request.resource.data.repliedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    // ---- emailKeys: one mailbox = one account (create-only, never readable) ----
+    match /emailKeys/{key} {
+      allow read: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // ---- handles: public user IDs (SMR-12345) -> uid + name ---------------
     // A signed-in user can look up ONE ID (get) but cannot list all of them.
     match /handles/{handleId} {
@@ -131,7 +167,7 @@ service cloud.firestore {
       allow read: if signedIn() && request.auth.uid in resource.data.members;
 
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['members', 'ids', 'updatedAt', 'lastText', 'lastSender', 'unread', 'seenAt'])
+        && request.resource.data.keys().hasOnly(['members', 'ids', 'updatedAt', 'lastText', 'lastSender', 'unread', 'seenAt', 'typing'])
         && request.resource.data.members is list
         && request.resource.data.members.size() == 2
         && request.auth.uid in request.resource.data.members
@@ -142,7 +178,7 @@ service cloud.firestore {
       allow update: if signedIn()
         && request.auth.uid in resource.data.members
         && request.resource.data.members == resource.data.members
-        && request.resource.data.keys().hasOnly(['members', 'ids', 'updatedAt', 'lastText', 'lastSender', 'unread', 'seenAt'])
+        && request.resource.data.keys().hasOnly(['members', 'ids', 'updatedAt', 'lastText', 'lastSender', 'unread', 'seenAt', 'typing'])
         && (request.resource.data.get('lastSender', null) == resource.data.get('lastSender', null)
             || request.resource.data.get('lastSender', request.auth.uid) == request.auth.uid);
 
@@ -150,21 +186,32 @@ service cloud.firestore {
     }
 
     // ---- private chats ----
-  match /chats/{chatId}/messages/{msgId} {
-  allow read: if signedIn()
-    && request.auth.uid in chatId.split('_');
+    match /chats/{chatId}/messages/{msgId} {
+      allow read: if signedIn()
+        && request.auth.uid in chatId.split('_');
 
-  allow create: if signedIn()
-    && request.auth.uid in chatId.split('_')
-    && request.resource.data.keys().hasOnly(['text', 'senderId', 'createdAt'])
-    && request.resource.data.senderId == request.auth.uid
-    && request.resource.data.text is string
-    && request.resource.data.text.size() >= 1
-    && request.resource.data.text.size() <= 1000
-    && request.resource.data.createdAt == request.time;
+      // text, optional reply + forwarded flag
+      allow create: if signedIn()
+        && request.auth.uid in chatId.split('_')
+        && request.resource.data.keys().hasOnly(['text', 'senderId', 'createdAt', 'replyTo', 'forwarded'])
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() >= 1
+        && request.resource.data.text.size() <= 1000
+        && (!('replyTo' in request.resource.data) || request.resource.data.replyTo is map)
+        && (!('forwarded' in request.resource.data) || request.resource.data.forwarded == true)
+        && request.resource.data.createdAt == request.time;
 
-  allow update, delete: if false;
-}
+      // "Delete for everyone": only the sender, and it only blanks the message.
+      allow update: if signedIn()
+        && request.auth.uid in chatId.split('_')
+        && resource.data.senderId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text'])
+        && request.resource.data.deleted == true
+        && request.resource.data.text == '';
+
+      allow delete: if false;
+    }
 
     // Everything else is closed by default.
     match /{document=**} {

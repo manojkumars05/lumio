@@ -9,6 +9,7 @@ import { auth, db } from "./firebase-config.js";
 import {
   createUserWithEmailAndPassword,
   updateProfile,
+  deleteUser,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   doc,
@@ -17,6 +18,16 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { friendlyAuthError, redirectIfLoggedIn, showConfigWarning } from "./auth.js";
 import { setFieldError, setLoading, setMessage } from "./utils.js";
+
+/** One real mailbox = one account. Gmail ignores dots and +tags, so
+ *  a.b+x@gmail.com and ab@gmail.com are the SAME inbox. */
+function emailKey(email) {
+  let [local, domain] = String(email).trim().toLowerCase().split("@");
+  local = local.split("+")[0];
+  if (domain === "googlemail.com") domain = "gmail.com";
+  if (domain === "gmail.com") local = local.replace(/\./g, "");
+  return local + "@" + domain;
+}
 
 const form = document.getElementById("registerForm");
 const submitBtn = document.getElementById("submitBtn");
@@ -104,6 +115,17 @@ form.addEventListener("submit", async (event) => {
   try {
     // 1) Firebase Authentication hashes and stores the password. We never touch it.
     const cred = await createUserWithEmailAndPassword(auth, values.email, values.password);
+
+    // 1b) Claim this mailbox. If another account already claimed it, undo and stop.
+    try {
+      await setDoc(doc(db, "emailKeys", emailKey(values.email)), { uid: cred.user.uid });
+    } catch (claimErr) {
+      if (claimErr.code === "permission-denied") {
+        try { await deleteUser(cred.user); } catch (e) { console.warn(e); }
+        throw Object.assign(new Error("email-taken"), { code: "auth/email-already-in-use" });
+      }
+      throw claimErr;
+    }
 
     // 2) Keep the display name on the auth user too.
     await updateProfile(cred.user, { displayName: values.name });

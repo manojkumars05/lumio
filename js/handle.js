@@ -44,3 +44,8 @@ export async function findByUserId(id) {
 export async function updateHandleName(id, name) {
   await updateDoc(doc(db, "handles", id), { name });
 }
+
+/** Update public fields (name, photo) on the handle. */
+export async function updateHandle(id, fields) {
+  await updateDoc(doc(db, "handles", id), fields);
+}

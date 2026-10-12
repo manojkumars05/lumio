@@ -28,16 +28,15 @@ init();
 
 async function init() {
   const user = await requireAuth(); // redirects to login.html if signed out
-  renderSkeletons();
-
-  const profile = await ensureProfile(user);
-  renderUserChip(user, profile);
+  if (!grid.querySelector(".skeleton")) renderSkeletons();
 
   // Pre-fill the search box from ?q=... (used by the search box on the watch page).
   const initialQuery = new URLSearchParams(location.search).get("q") || "";
   searchInput.value = initialQuery;
 
-  await Promise.all([loadVideos(), loadImages()]);
+  // Run everything at the same time instead of one after another.
+  const profileDone = ensureProfile(user).then((profile) => renderUserChip(user, profile));
+  await Promise.all([profileDone, loadVideos(), loadImages()]);
 }
 
 /* ---------------------------------------------------------------- videos -- */

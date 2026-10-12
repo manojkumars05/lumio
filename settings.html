@@ -3,11 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js">
+  <link rel="modulepreload" href="js/firebase-config.js">
   <title>Settings - Lumio</title>
   <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet"></noscript>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -19,6 +25,7 @@
         <a href="upload.html">Upload</a>
         <a href="chat.html">Chat</a>
         <a href="settings.html" aria-current="page">Settings</a>
+      <a href="support.html">Support</a>
       </nav>
       <div class="user-chip">
         <span class="avatar" data-user-avatar aria-hidden="true">?</span>
@@ -90,6 +97,7 @@
     </section>
   </main>
 
+  <script src="js/boot.js"></script>
   <script type="module" src="js/settings.js"></script>
   <script type="module" src="js/sidebar.js"></script>
 </body>

@@ -120,7 +120,8 @@ img, video, svg { max-width: 100%; display: block; }
 .field .hint { color: var(--muted); font-size: 0.82rem; }
 .field-error { color: var(--danger); font-size: 0.85rem; min-height: 1.1em; }
 
-input[type="text"], input[type="email"], input[type="password"], input[type="tel"],
+input[type="text"], input[type="email"], input[type="password"], input[type="search"],
+input[type="tel"], input[type="number"], input[type="url"],
 input[type="file"], textarea {
   width: 100%; min-height: 46px; padding: 11px 14px;
   font: inherit; color: var(--text);
