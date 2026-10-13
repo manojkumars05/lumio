@@ -205,10 +205,13 @@ service cloud.firestore {
       // "Delete for everyone": only the sender, and it only blanks the message.
       allow update: if signedIn()
         && request.auth.uid in chatId.split('_')
-        && resource.data.senderId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text'])
-        && request.resource.data.deleted == true
-        && request.resource.data.text == '';
+        && ((resource.data.senderId == request.auth.uid
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text'])
+             && request.resource.data.deleted == true
+             && request.resource.data.text == '')
+            // "Delete for me": any member may add only their own uid to hiddenFor
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hiddenFor'])
+                && request.auth.uid in request.resource.data.hiddenFor));
 
       allow delete: if false;
     }

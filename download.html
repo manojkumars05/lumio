@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download App - Lumio</title><link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css"></head>
+<body><main class="dl-wrap">
+<h1>Download Lumio</h1><p id="detected" class="muted"></p>
+<section class="dl-card" id="android"><h2>📱 Android</h2>
+<a class="dl-btn" href="https://github.com/manojkumars05/lumio-apkz/releases/download/latest/lumio.apk">Download APK</a>
+<ol><li>Download the APK file.</li><li>Open it and tap Install.</li><li>If blocked, go to Settings and allow installs from this source.</li><li>If Play Protect warns you, tap Install anyway.</li></ol></section>
+<section class="dl-card" id="windows"><h2>💻 Windows</h2>
+<button class="dl-btn" id="installBtn" hidden>Install on this PC</button>
+<ol id="winSteps"><li>Open Lumio in Chrome or Edge.</li><li>Click the Install icon (⊕) at the end of the address bar.</li><li>Or open the ⋮ menu, then Cast, save and share, then Install Lumio.</li><li>Lumio will appear in your Start menu and on your desktop.</li></ol></section>
+</main>
+<script src="js/boot.js"></script><script type="module" src="js/sidebar.js"></script>
+<script>
+var ua=navigator.userAgent,isA=/Android/i.test(ua),isW=/Windows/i.test(ua);
+var d=document.getElementById("detected");
+if(isA){d.textContent="Android phone detected.";document.getElementById("android").classList.add("rec");document.getElementById("windows").hidden=true;}
+else if(isW){d.textContent="Windows PC detected.";document.getElementById("windows").classList.add("rec");document.getElementById("android").hidden=true;}
+var b=document.getElementById("installBtn");
+function show(){if(window.__lumioInstall){b.hidden=false;}}
+show();window.addEventListener("lumio-installable",show);
+b.onclick=function(){var e=window.__lumioInstall;if(e){e.prompt();}};
+</script></body></html>

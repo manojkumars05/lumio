@@ -546,3 +546,17 @@ img, svg, video { max-width: 100%; }
 .lm-badge { margin-left: auto; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #ff4d7a; color: #fff; font-size: 0.75rem; font-weight: 700; display: grid; place-items: center; }
 .lm-toggle { position: relative; }
 .lm-toggle.has-unread::after { content: ""; position: absolute; top: 6px; right: 6px; width: 10px; height: 10px; border-radius: 50%; background: #ff4d7a; }
+
+/* Sticky menu: stays visible while scrolling */
+.lm-toggle { position: fixed !important; top: 12px; left: 12px; z-index: 70; }
+.site-header { position: sticky; top: 0; z-index: 50; }
+.topbar { position: sticky; top: 0; z-index: 50; }
+
+.lm-backbtn { position: fixed; top: 12px; left: 64px; z-index: 70; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 1.3rem; cursor: pointer; }
+@media (min-width: 801px) { .lm-backbtn { left: auto; right: 16px; } }
+.dl-wrap { max-width: 720px; margin: 24px auto; padding: 0 16px; display: grid; gap: 16px; }
+.dl-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+.dl-card.rec { border-color: var(--primary); }
+.dl-card h2 { margin: 0 0 8px; font-size: 1.15rem; }
+.dl-card ol { margin: 10px 0 0; padding-left: 20px; color: var(--muted, #aaa); line-height: 1.6; }
+.dl-btn { display: inline-block; padding: 12px 20px; border-radius: 12px; border: 0; background: var(--primary); color: #fff; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }

@@ -32,5 +32,6 @@ onAuthStateChanged(auth, (user) => {
     badge.textContent = total > 99 ? "99+" : String(total);
     badge.hidden = total === 0;
     toggle?.classList.toggle("has-unread", total > 0);
+    try { if (total > 0) navigator.setAppBadge && navigator.setAppBadge(total); else navigator.clearAppBadge && navigator.clearAppBadge(); } catch (e) {}
   }, () => {});
 });

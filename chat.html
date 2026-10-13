@@ -107,7 +107,7 @@
 </head>
 <body>
   <div class="topbar">
-    <a href="home.html">Home</a>
+    <a href="javascript:history.length>1?history.back():location.href='home.html'">&larr; Back</a>
     <h1>Messages</h1>
   </div>
 
@@ -157,7 +157,7 @@
   <script type="module">
     import { auth, db } from "./js/firebase-config.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { collection, addDoc, setDoc, updateDoc, deleteField, doc, increment, query, where, orderBy, onSnapshot, serverTimestamp }
+    import { collection, addDoc, setDoc, updateDoc, arrayUnion, deleteField, doc, increment, query, where, orderBy, onSnapshot, serverTimestamp }
       from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { ensureProfile, cacheUser } from "./js/auth.js";
     import { ensureUserId, findByUserId, normalizeId } from "./js/handle.js";
@@ -289,7 +289,7 @@
           const data = d.data();
           const other = (data.members || []).find((u) => u !== me.uid);
           if (!other) continue;
-          const ms = data.updatedAt && data.updatedAt.toMillis ? data.updatedAt.toMillis() : Date.now();
+          const ms = data.updatedAt && data.updatedAt.toMillis ? data.updatedAt.toMillis() : ((meta[other] && meta[other].ms) || 0);
           const prevUnread = meta[other] ? meta[other].unread : 0;
           meta[other] = {
             text: data.lastText || "", sender: data.lastSender || "", ms,
@@ -390,7 +390,7 @@
       }
       const list = contacts.filter((c) => !filterText || (c.name || "").toLowerCase().includes(filterText) || (c.id || "").toLowerCase().includes(filterText));
       if (!list.length) { box.innerHTML = '<p class="empty">No chats match "' + filterText.replace(/[<>&"]/g, "") + '".</p>'; updateTitle(); return; }
-      list.sort((a, b) => ((meta[b.uid] && meta[b.uid].ms) || 0) - ((meta[a.uid] && meta[a.uid].ms) || 0));
+      list.sort((a, b) => (((meta[b.uid] && meta[b.uid].ms) || 0) - ((meta[a.uid] && meta[a.uid].ms) || 0)) || (a.name || "").localeCompare(b.name || "") || (a.uid < b.uid ? -1 : 1));
       list.forEach((c) => box.appendChild(contactRow(c, () => openChat(c.uid), true)));
       updateTitle();
     }
@@ -442,6 +442,7 @@
       renderStatus();
       $("composer").hidden = false;
       $("wrap").classList.add("in-chat");
+      if (!(history.state && history.state.chat)) history.pushState({ chat: 1 }, "");
       document.body.classList.add("chat-open");
 
       if (unsubPeer) unsubPeer();
@@ -458,7 +459,7 @@
         lastMsgs = snap.docs.map((d) => {
           const m = d.data({ serverTimestamps: "estimate" });
           return { id: d.id, text: m.text || "", senderId: m.senderId, replyTo: m.replyTo || null,
-                   forwarded: !!m.forwarded, deleted: !!m.deleted,
+                   forwarded: !!m.forwarded, deleted: !!m.deleted, hidden: (m.hiddenFor||[]).includes(me.uid) || localHidden().has(d.id),
                    ms: m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0, pending: d.metadata.hasPendingWrites };
         });
         renderMsgs(snap.metadata.hasPendingWrites);
@@ -477,7 +478,7 @@
       const peerName = (contactOf(activeUid) || {}).name || "User";
       list.innerHTML = "";
       if (!lastMsgs.length) list.innerHTML = '<p class="empty">No messages yet. Say hi!</p>';
-      lastMsgs.forEach((m) => {
+      lastMsgs.filter((m) => !m.hidden).forEach((m) => {
         const mine = m.senderId === me.uid;
         const el = document.createElement("div");
         el.className = "msg" + (mine ? " me" : "") + (m.deleted ? " gone" : "");
@@ -538,6 +539,7 @@
       };
       add("↩ Reply", () => startReply(m));
       add("↪ Forward", () => openForward(m));
+      add("🗑 Delete for me", () => deleteForMe(m), true);
       if (mine) add("🗑 Delete for everyone", () => deleteMessage(m), true);
       document.body.appendChild(menu);
       const r = anchor.getBoundingClientRect();
@@ -558,6 +560,17 @@
     }
     function clearReply() { replyTo = null; $("replyBar").hidden = true; }
     $("replyCancel").addEventListener("click", clearReply);
+
+    // ---- delete for me (only hides it for this user) ----
+    const hkey = () => "lumio_hidden_" + me.uid;
+    function localHidden() { try { return new Set(JSON.parse(localStorage.getItem(hkey()) || "[]")); } catch (e) { return new Set(); } }
+    async function deleteForMe(m) {
+      if (!confirm("Delete this message for you only?")) return;
+      const h = localHidden(); h.add(m.id);
+      try { localStorage.setItem(hkey(), JSON.stringify([...h])); } catch (e) {}
+      try { await updateDoc(doc(db, "chats", chatIdFor(activeUid), "messages", m.id), { hiddenFor: arrayUnion(me.uid) }); } catch (e) { console.error(e); }
+      m.hidden = true; renderMsgs();
+    }
 
     // ---- delete for everyone ----
     async function deleteMessage(m) {
@@ -625,7 +638,7 @@
       setDoc(doc(db, "chats", chatIdFor(activeUid)), { typing: { [me.uid]: Date.now() } }, { merge: true }).catch(() => {});
     });
 
-    $("back").addEventListener("click", () => {
+    function closeChat() {
       activeUid = null;
       if (unsub) { unsub(); unsub = null; }
       if (unsubPeer) { unsubPeer(); unsubPeer = null; }
@@ -635,7 +648,9 @@
       $("peerAvatar").hidden = true; $("peerStatus").hidden = true;
       $("peerName").textContent = "Pick someone to chat with";
       renderContacts();
-    });
+    }
+    $("back").addEventListener("click", () => { if (history.state && history.state.chat) history.back(); else closeChat(); });
+    window.addEventListener("popstate", () => { if (activeUid) closeChat(); });
   </script>
   <script type="module" src="js/sidebar.js"></script>
 </body>
