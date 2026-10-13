@@ -21,6 +21,16 @@
   var LOGOUT_SVG = icon('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>');
   var current = location.pathname.split("/").pop() || "index.html";
 
+  // Inside the installed app (Android app / installed Windows app) hide "Download App".
+  var inApp = false;
+  try {
+    inApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+      /; wv\)/.test(navigator.userAgent) ||
+      (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+      window.navigator.standalone === true;
+  } catch (e) {}
+  if (inApp) LINKS = LINKS.filter(function (l) { return l.href !== "download.html"; });
+
   // ---- installable PWA + service worker (Windows/Android "Install app") ----
   if (!document.querySelector('link[rel="manifest"]')) {
     var mf = document.createElement("link"); mf.rel = "manifest"; mf.href = "manifest.json"; document.head.appendChild(mf);
