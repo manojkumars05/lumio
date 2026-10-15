@@ -728,3 +728,14 @@ html { background: var(--bg, #0f0b1f); }
   .bell-panel { position: fixed; left: 10px; right: 10px; top: 72px; width: auto; max-height: 60vh; }
 }
 input[type="date"] { appearance: none; -webkit-appearance: none; min-height: 46px; }
+
+/* Admin on phones: rows wrap instead of running off the screen, and nothing can widen the page. */
+.ix-page { overflow-x: clip; max-width: 100%; }
+.ix-row { flex-wrap: wrap; }
+.ix-row .ix-person-text { flex: 1 1 140px; }
+.ix-row .ix-person-text strong, .ix-row .ix-person-text small { white-space: normal; overflow-wrap: anywhere; }
+.ix-row .ix-actions { flex-wrap: wrap; margin-left: auto; }
+@media (max-width: 600px) {
+  .ix-row .ix-actions { width: 100%; }
+  .ix-row .ix-actions .btn { flex: 1 1 0; min-width: 0; padding-inline: 10px; }
+}
