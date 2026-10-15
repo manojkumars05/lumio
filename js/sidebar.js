@@ -36,17 +36,19 @@ onAuthStateChanged(auth, async (user) => {
   let cached = null;
   try { cached = JSON.parse(localStorage.getItem("lumio_user") || "null"); } catch {}
   if (!cached || cached.uid !== user.uid || typeof cached.isAdmin !== "boolean") {
-    let isAdmin = false;
-    try { isAdmin = (await getDoc(doc(db, "admins", user.uid))).exists(); } catch {}
-    cacheUser({ uid: user.uid, isAdmin });
-    // cacheUser skips empty values, so store false explicitly.
-    try {
-      const c = JSON.parse(localStorage.getItem("lumio_user") || "{}");
-      c.isAdmin = isAdmin;
-      localStorage.setItem("lumio_user", JSON.stringify(c));
-    } catch {}
-    window.__ixSetAdmin && window.__ixSetAdmin(isAdmin);
-    paintBadge();
+    let isAdmin = false, checked = false;
+    try { isAdmin = (await getDoc(doc(db, "admins", user.uid))).exists(); checked = true; } catch {}
+    if (checked) {   // never remember a failed check as "not admin"
+      cacheUser({ uid: user.uid, isAdmin });
+      // cacheUser skips empty values, so store false explicitly.
+      try {
+        const c = JSON.parse(localStorage.getItem("lumio_user") || "{}");
+        c.isAdmin = isAdmin;
+        localStorage.setItem("lumio_user", JSON.stringify(c));
+      } catch {}
+      window.__ixSetAdmin && window.__ixSetAdmin(isAdmin);
+      paintBadge();
+    }
   }
 
   // Unread-message badge on the Chat tab (shows on every page).
