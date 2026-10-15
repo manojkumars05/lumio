@@ -8,6 +8,7 @@
 
 /* 1. DESIGN TOKENS ---------------------------------------------------------- */
 :root {
+  color-scheme: dark;   /* native pickers (date, etc.) follow the dark theme */
   --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: "Sora", "DM Sans", system-ui, sans-serif;
 
@@ -37,6 +38,7 @@
 
 @media (prefers-color-scheme: light) {
   :root {
+    color-scheme: light;
     --bg: #f6f4ff;
     --surface: #ffffff;
     --surface-2: #efebff;
@@ -120,8 +122,8 @@ img, video, svg { max-width: 100%; display: block; }
 .field .hint { color: var(--muted); font-size: 0.82rem; }
 .field-error { color: var(--danger); font-size: 0.85rem; min-height: 1.1em; }
 
-input[type="text"], input[type="email"], input[type="password"], input[type="dob"],
-input[type="tel"], input[type="number"], input[type="url"],
+input[type="text"], input[type="email"], input[type="password"], input[type="search"],
+input[type="tel"], input[type="number"], input[type="url"], input[type="date"],
 input[type="file"], textarea {
   width: 100%; min-height: 46px; padding: 11px 14px;
   font: inherit; color: var(--text);
@@ -719,3 +721,10 @@ html { background: var(--bg, #0f0b1f); }
 .photo-edit { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 18px; }
 .photo-wrap { position: relative; }
 .photo-pen { position: absolute; right: -2px; bottom: -2px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--bg); background: var(--primary); color: #fff; cursor: pointer; }
+
+/* Phone: the bell list opens inside the screen (it used to be cut off on the left). */
+@media (max-width: 600px) {
+  .bell-wrap { position: static; }
+  .bell-panel { position: fixed; left: 10px; right: 10px; top: 72px; width: auto; max-height: 60vh; }
+}
+input[type="date"] { appearance: none; -webkit-appearance: none; min-height: 46px; }
