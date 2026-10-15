@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Create your account - Lumio</title>
-  <meta name="description" content="Create a free Lumio account to watch and share videos.">
+  <title>Create your account - InfiniX</title>
+  <meta name="description" content="Create a free InfiniX account and chat without limits.">
   <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,16 +14,16 @@
 <body>
   <main class="auth-shell" id="main">
     <section class="auth-hero" aria-hidden="true">
-      <a class="brand" href="index.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>Lumio</span></a>
-      <h2>Every moment deserves an audience.</h2>
-      <p>Watch fresh videos, discover new creators and share your own stories in one bright little corner of the web.</p>
+      <a class="brand" href="login.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>InfiniX</span></a>
+      <h2>Chat without limits.</h2>
+      <p>Create your InfiniX account in under a minute and start talking to your friends.</p>
     </section>
 
     <section class="auth-panel" aria-labelledby="title">
       <div class="auth-card">
-        <a class="brand brand-mobile" href="index.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>Lumio</span></a>
+        <a class="brand brand-mobile" href="login.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>InfiniX</span></a>
         <h1 id="title">Create your account</h1>
-        <p class="lead">Join Lumio in under a minute.</p>
+        <p class="lead">Join InfiniX in under a minute.</p>
 
         <div id="configWarning" class="alert alert-warn" role="alert" hidden>
           Firebase isn't configured yet. Open <code>js/firebase-config.js</code> and paste your web-app config (see README, step 5).
@@ -36,6 +36,13 @@
             <input id="name" name="name" type="text" autocomplete="name" placeholder="Ada Lovelace" required aria-describedby="name-error" maxlength="80">
             <div class="field-error" id="name-error" aria-live="polite"></div>
           </div>
+          <div class="field">
+            <label for="username">Username</label>
+            <input id="username" name="username" type="text" autocomplete="username" placeholder="e.g. manoj_kumar" required aria-describedby="username-hint username-error" maxlength="20" autocapitalize="none" spellcheck="false">
+            <div class="hint" id="username-hint">5 to 20 characters: small letters, numbers, _ and . only.</div>
+            <div class="field-error" id="username-error" aria-live="polite"></div>
+          </div>
+
 
           <div class="field">
             <label for="email">Email</label>
@@ -44,9 +51,9 @@
           </div>
 
           <div class="field">
-            <label for="phone">Mobile number</label>
-            <input id="phone" name="phone" type="tel" autocomplete="tel" placeholder="9876543210" required aria-describedby="phone-error" maxlength="16">
-            <div class="field-error" id="phone-error" aria-live="polite"></div>
+            <label for="dob">Date of birth</label>
+            <input id="dob" name="dob" type="date" autocomplete="bday" required aria-describedby="dob-error">
+            <div class="field-error" id="dob-error" aria-live="polite"></div>
           </div>
 
           <div class="field">
@@ -56,13 +63,7 @@
             <div class="field-error" id="password-error" aria-live="polite"></div>
           </div>
 
-          <div class="field">
-            <label for="confirmPassword">Confirm password</label>
-            <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" placeholder="Re-enter your password" required aria-describedby="confirmPassword-error">
-            <div class="field-error" id="confirmPassword-error" aria-live="polite"></div>
-          </div>
-
-          <label class="check"><input type="checkbox" id="showPassword"> Show passwords</label>
+          <label class="check"><input type="checkbox" id="showPassword"> Show password</label>
 
           <button class="btn btn-primary btn-block" type="submit" id="submitBtn">
             <span class="spinner" hidden></span><span class="btn-label">Create account</span>

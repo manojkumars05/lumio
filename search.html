@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js">
+  <link rel="modulepreload" href="js/firebase-config.js">
+  <title>Search - InfiniX</title>
+  <meta name="theme-color" content="#0f0b1f">
+  <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="ix-top">
+    <a class="brand" href="home.html"><img src="assets/images/logo.svg" alt="" width="32" height="32"><span>InfiniX</span></a>
+    <span class="avatar" data-user-avatar aria-hidden="true">?</span>
+  </header>
+  <main id="main" class="container ix-page">
+    <h1 class="ix-title">Search</h1>
+    <form class="ix-searchbox" id="searchForm" role="search">
+      <label for="q" class="visually-hidden">Search by InfiniX ID or username</label>
+      <input id="q" type="text" placeholder="InfiniX ID (SMR-12345) or username" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40">
+      <button class="btn btn-primary" type="submit" id="goBtn"><span class="btn-label">Search</span></button>
+    </form>
+    <p class="muted" id="msg" aria-live="polite">Enter an InfiniX ID like SMR-12345, or a username.</p>
+    <div id="result"></div>
+  </main>
+
+  <script src="js/boot.js"></script>
+  <script type="module" src="js/search.js"></script>
+  <script type="module" src="js/sidebar.js"></script>
+</body>
+</html>

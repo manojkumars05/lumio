@@ -5,7 +5,7 @@
 // =============================================================================
 
 import { db } from "./firebase-config.js";
-import { ensureProfile, renderUserChip, requireAuth } from "./auth.js";
+import { getProfileCached, renderUserChip, requireAuth } from "./auth.js";
 import {
   collection, doc, getDoc, addDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -18,11 +18,16 @@ const sendBtn = document.getElementById("sendBtn");
 const formMsg = document.getElementById("formMsg");
 
 const user = await requireAuth();
-const profile = await ensureProfile(user);
+const profile = await getProfileCached(user);
 renderUserChip(user, profile);
 
+// Admin flag is remembered on this device (sidebar.js); only ask Firestore when it is unknown.
 let isAdmin = false;
-try { isAdmin = (await getDoc(doc(db, "admins", user.uid))).exists(); } catch { /* not admin */ }
+try {
+  const c = JSON.parse(localStorage.getItem("lumio_user") || "null");
+  if (c && c.uid === user.uid && typeof c.isAdmin === "boolean") isAdmin = c.isAdmin;
+  else isAdmin = (await getDoc(doc(db, "admins", user.uid))).exists();
+} catch { /* not admin */ }
 
 function when(ts) {
   const d = ts && ts.toDate ? ts.toDate() : null;

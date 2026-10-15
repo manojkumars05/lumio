@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Log in - Lumio</title>
-  <meta name="description" content="Log in to your Lumio account.">
+  <title>Log in - InfiniX</title>
+  <meta name="description" content="Log in to your InfiniX account.">
   <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,14 +14,14 @@
 <body>
   <main class="auth-shell" id="main">
     <section class="auth-hero" aria-hidden="true">
-      <a class="brand" href="index.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>Lumio</span></a>
-      <h2>Welcome back to the glow.</h2>
-      <p>Pick up where you left off and see what's new on Lumio.</p>
+      <a class="brand" href="login.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>InfiniX</span></a>
+      <h2>Welcome back.</h2>
+      <p>Pick up where you left off and see who is waiting for you on InfiniX.</p>
     </section>
 
     <section class="auth-panel" aria-labelledby="title">
       <div class="auth-card">
-        <a class="brand brand-mobile" href="index.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>Lumio</span></a>
+        <a class="brand brand-mobile" href="login.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>InfiniX</span></a>
         <h1 id="title">Log in</h1>
         <p class="lead">Enter your details to continue.</p>
 
@@ -29,6 +29,24 @@
           Firebase isn't configured yet. Open <code>js/firebase-config.js</code> and paste your web-app config (see README, step 5).
         </div>
         <div id="formError" class="alert alert-error" role="alert" hidden></div>
+        <div id="resetInfo" class="alert alert-warn" role="status" hidden></div>
+        <section id="resetBox" class="reset-box" hidden>
+          <h2>Set new password</h2>
+          <p class="lead">The admin approved your request. Choose a new password.</p>
+          <form id="resetForm" novalidate>
+            <div class="field">
+              <label for="rpw">New password</label>
+              <input id="rpw" type="password" autocomplete="new-password" required>
+              <div class="field-error" id="rpw-error" aria-live="polite"></div>
+            </div>
+            <div class="field">
+              <label for="rpw2">Confirm new password</label>
+              <input id="rpw2" type="password" autocomplete="new-password" required>
+              <div class="field-error" id="rpw2-error" aria-live="polite"></div>
+            </div>
+            <button class="btn btn-primary btn-block" type="submit" id="resetBtn"><span class="spinner" hidden></span><span class="btn-label">Set new password</span></button>
+          </form>
+        </section>
 
         <form id="loginForm" novalidate>
           <div class="field">
@@ -43,14 +61,15 @@
             <div class="field-error" id="password-error" aria-live="polite"></div>
           </div>
 
-          <label class="check"><input type="checkbox" id="showPassword"> Show password</label>
+          <div class="auth-row"><label class="check"><input type="checkbox" id="showPassword"> Show password</label>
+          <a href="forgot.html">Forgot password?</a></div>
 
           <button class="btn btn-primary btn-block" type="submit" id="submitBtn">
             <span class="spinner" hidden></span><span class="btn-label">Log in</span>
           </button>
         </form>
 
-        <p class="auth-switch">New to Lumio? <a href="register.html">Create an account</a></p>
+        <p class="auth-switch">New to InfiniX? <a href="register.html">Create an account</a></p>
       </div>
     </section>
   </main>

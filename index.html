@@ -2,36 +2,39 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lumio - Share your moments</title>
-  <meta name="description" content="Lumio is a video-sharing platform. Watch, search and share videos.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>InfiniX - Chat without limits</title>
+  <meta name="description" content="InfiniX - Chat without limits.">
+  <meta name="theme-color" content="#0f0b1f">
   <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- Entry point: new visitors go to Register, signed-in users go straight to Home. -->
-  <main class="splash" id="main">
-    <img src="assets/images/logo.svg" alt="" width="72" height="72">
-    <h1>Lumio</h1>
+  <!-- Loading page: shown only when the app is opened (this is the entry point).
+       Signed-in users continue to Home, new visitors go to Register. -->
+  <main class="ix-splash" id="main">
+    <img class="ix-splash-logo" src="assets/images/logo.svg" alt="InfiniX" width="96" height="96">
+    <h1>InfiniX</h1>
+    <p class="ix-tag">Chat without limits</p>
     <div class="spinner" role="status" aria-label="Loading"></div>
-    <p class="muted" id="fallback" hidden>Taking a while? <a href="register.html">Continue to Lumio</a></p>
-    <noscript><p class="muted">JavaScript is required. <a href="register.html">Continue to Lumio</a></p></noscript>
+    <p class="muted" id="fallback" hidden>Taking a while? <a href="login.html">Continue to InfiniX</a></p>
+    <noscript><p class="muted">JavaScript is required. <a href="login.html">Continue to InfiniX</a></p></noscript>
   </main>
 
   <script type="module">
     import { auth, isConfigured } from "./js/firebase-config.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-    // Show a manual link if redirecting takes unusually long.
-    setTimeout(() => (document.getElementById("fallback").hidden = false), 5000);
+    const started = Date.now();
+    const MIN_SHOW_MS = 1200; // keep the logo visible long enough to be seen
+    setTimeout(() => (document.getElementById("fallback").hidden = false), 6000);
+
+    const go = (page) => setTimeout(() => location.replace(page), Math.max(0, MIN_SHOW_MS - (Date.now() - started)));
 
     if (!isConfigured) {
-      location.replace("register.html"); // register page explains how to configure Firebase
+      go("register.html");
     } else {
-      onAuthStateChanged(auth, (user) => location.replace(user ? "home.html" : "register.html"));
+      onAuthStateChanged(auth, (user) => go(user ? "home.html" : "register.html"));
     }
   </script>
 </body>

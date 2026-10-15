@@ -14,7 +14,9 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCobyb4SZk6EwYH-O0uZdddhR9fWtZznj8",
@@ -33,4 +35,18 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 // Long-polling auto-detect: keeps live updates (chat) working on mobile
 // networks / browsers where the normal WebSocket stream gets blocked or stalls.
-export const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+// Persistent local cache (IndexedDB): pages and chats open instantly from the device
+// and Firestore only downloads what changed, which keeps billed reads low.
+// If the browser blocks IndexedDB (private mode), it falls back to the normal memory cache.
+function makeDb() {
+  try {
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch (e) {
+    console.warn("Persistent cache not available, using memory cache:", e);
+    return initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+  }
+}
+export const db = makeDb();

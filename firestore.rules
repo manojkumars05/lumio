@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Lumio - Firestore Security Rules
+// InfiniX - Firestore Security Rules
 // Publish from the console (Firestore Database -> Rules) or with: firebase deploy --only firestore:rules
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -22,8 +22,49 @@ service cloud.firestore {
       return value is string && (value == '' || value.matches('\\+?[0-9]{10,15}'));
     }
 
+    // Username: small letters, numbers, _ and . only, 5 to 20 characters.
+    function validUsername(value) {
+      return value is string && value.matches('[a-z0-9_.]{5,20}');
+    }
+
+    // Date of birth: empty, or YYYY-MM-DD.
+    function validDob(value) {
+      return value is string && (value == '' || value.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}'));
+    }
+
     function validTitle(value) {
       return value is string && value.size() >= 1 && value.size() <= 120;
+    }
+
+    // A blocked user (users/{uid}.blocked == true) can no longer send anything.
+    function notBlocked() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('blocked', false) != true;
+    }
+
+    // Hours after which chat photos are deleted (admin setting, default 24).
+    function autoDeleteHours() {
+      return exists(/databases/$(database)/documents/settings/app)
+        ? get(/databases/$(database)/documents/settings/app).data.get('autoDeleteHours', 24)
+        : 24;
+    }
+
+    // True when a photo sent at `createdAt` is older than the auto delete time.
+    function photoExpired(createdAt) {
+      return createdAt is timestamp
+        && request.time > createdAt + duration.value(autoDeleteHours(), 'h');
+    }
+
+    // Profile photo: empty, or a small JPEG data URL (256 px square, about 10-30 KB).
+    function validPhoto(value) {
+      return value is string && (value == '' || (value.size() <= 40000 && value.matches('data:image/jpeg;base64,.*')));
+    }
+
+    // Chat theme + message theme names (users/{uid}.chatTheme / .msgTheme).
+    function validChatTheme(value) {
+      return value in ['default', 'midnight', 'ocean', 'forest', 'sunset', 'rose', 'light'];
+    }
+    function validMsgTheme(value) {
+      return value in ['default', 'ocean', 'forest', 'sunset', 'rose', 'mono'];
     }
 
     // ---- admins: a user may only check whether THEY are an admin ---------
@@ -34,11 +75,15 @@ service cloud.firestore {
 
     // ---- users: each person can only see and edit their own profile -------
     match /users/{userId} {
-      allow read: if signedIn() && request.auth.uid == userId;
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
 
       allow create: if signedIn()
         && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt', 'userId', 'phone'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt', 'userId', 'phone', 'username', 'dob'])
+        && validDob(request.resource.data.get('dob', ''))
+        && (!('username' in request.resource.data)
+            || (validUsername(request.resource.data.username)
+                && get(/databases/$(database)/documents/usernames/$(request.resource.data.username)).data.uid == request.auth.uid))
         && validPhone(request.resource.data.get('phone', ''))
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
@@ -58,9 +103,166 @@ service cloud.firestore {
                 && request.resource.data.userId.matches('SMR-[0-9]{5}')
                 && exists(/databases/$(database)/documents/handles/$(request.resource.data.userId))
                 && get(/databases/$(database)/documents/handles/$(request.resource.data.userId)).data.uid == request.auth.uid))
+        && request.resource.data.get('blocked', false) == resource.data.get('blocked', false)
+        && validDob(request.resource.data.get('dob', ''))
+        && validChatTheme(request.resource.data.get('chatTheme', 'default'))
+        && validMsgTheme(request.resource.data.get('msgTheme', 'default'))
+        && validPhoto(request.resource.data.get('photo', ''))
+        // username: unchanged, or set ONCE to a name this user has claimed in usernames/
+        && (request.resource.data.get('username', null) == resource.data.get('username', null)
+            || (!('username' in resource.data)
+                && validUsername(request.resource.data.username)
+                && exists(/databases/$(database)/documents/usernames/$(request.resource.data.username))
+                && get(/databases/$(database)/documents/usernames/$(request.resource.data.username)).data.uid == request.auth.uid))
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
         && request.resource.data.name.size() <= 80;
+
+      // Admin only: block / unblock a user (nothing else may change).
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked'])
+        && request.resource.data.blocked is bool;
+
+      allow delete: if false;
+    }
+
+    // ---- passwordRequests: "Forgot password" ---------------------------------
+    // Anyone (not logged in) may create ONE pending request and read it by its
+    // random id. Only the admin can list, approve or reject. The Vercel function
+    // (Admin SDK) marks it 'used' after the password is changed.
+    match /passwordRequests/{reqId} {
+      allow get: if true;
+      allow list: if isAdmin();
+
+      allow create: if request.resource.data.keys().hasOnly(['identifier', 'status', 'createdAt'])
+        && request.resource.data.identifier is string
+        && request.resource.data.identifier.size() >= 3
+        && request.resource.data.identifier.size() <= 100
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if isAdmin()
+        && resource.data.status == 'pending'
+        && ((request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+             && request.resource.data.status == 'rejected')
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'approvedAt'])
+                && request.resource.data.status == 'approved'
+                && request.resource.data.approvedAt == request.time));
+
+      allow delete: if false;
+    }
+
+    // ---- settings/app: admin-controlled values (approval time, photo auto delete) ----
+    // Every signed-in user may read the one document (the chat needs autoDeleteHours);
+    // only an admin can list or change it.
+    match /settings/{docId} {
+      allow get: if signedIn();
+      allow list: if isAdmin();
+
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['resetHours', 'autoDeleteHours'])
+        && (!('resetHours' in request.resource.data)
+            || (request.resource.data.resetHours is int
+                && request.resource.data.resetHours >= 1 && request.resource.data.resetHours <= 720))
+        && (!('autoDeleteHours' in request.resource.data)
+            || (request.resource.data.autoDeleteHours is int
+                && request.resource.data.autoDeleteHours >= 1 && request.resource.data.autoDeleteHours <= 720));
+
+      allow delete: if false;
+    }
+
+    // ---- stats/photos: photo counter for the admin panel { count, bytes } ----
+    // Clients change it by +1 / -1 photo together with sending / deleting a photo.
+    match /stats/{docId} {
+      allow read: if isAdmin();
+
+      allow create: if signedIn() && docId == 'photos'
+        && request.resource.data.keys().hasOnly(['count', 'bytes'])
+        && request.resource.data.count == 1
+        && request.resource.data.bytes is int
+        && request.resource.data.bytes >= 0 && request.resource.data.bytes <= 700000;
+
+      allow update: if signedIn() && docId == 'photos'
+        && request.resource.data.keys().hasOnly(['count', 'bytes'])
+        && request.resource.data.count is int && request.resource.data.bytes is int
+        && request.resource.data.count >= 0 && request.resource.data.bytes >= 0
+        && ((request.resource.data.count == resource.data.count + 1
+             && request.resource.data.bytes >= resource.data.bytes
+             && request.resource.data.bytes <= resource.data.bytes + 700000)
+            || (request.resource.data.count == resource.data.count - 1
+                && request.resource.data.bytes <= resource.data.bytes
+                && request.resource.data.bytes >= resource.data.bytes - 700000));
+
+      allow delete: if false;
+    }
+
+    // ---- reports: "Report message" from chat. The admin reviews them. ----
+    // The report id is <messageId>_<reporterUid>, so one person can report a message once.
+    // The text / photo preview must match the real message (checked with get()).
+    match /reports/{reportId} {
+      allow read: if isAdmin();
+
+      allow create: if signedIn() && notBlocked()
+        && request.resource.data.keys().hasOnly(['reporterId', 'reportedId', 'chatId', 'msgId', 'photoId', 'text', 'thumb', 'reason', 'status', 'createdAt'])
+        && request.resource.data.msgId is string
+        && reportId == request.resource.data.msgId + '_' + request.auth.uid
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.chatId is string
+        && request.auth.uid in request.resource.data.chatId.split('_')
+        && request.resource.data.reportedId is string
+        && request.resource.data.reportedId != request.auth.uid
+        && request.resource.data.reportedId in request.resource.data.chatId.split('_')
+        && request.resource.data.reason in ['spam', 'harassment', 'inappropriate', 'other']
+        && request.resource.data.status == 'open'
+        && request.resource.data.text is string && request.resource.data.text.size() <= 1000
+        && request.resource.data.thumb is string && request.resource.data.thumb.size() <= 40000
+        && request.resource.data.photoId is string && request.resource.data.photoId.size() <= 40
+        && request.resource.data.createdAt == request.time
+        && get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)/messages/$(request.resource.data.msgId)).data.senderId == request.resource.data.reportedId
+        && get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)/messages/$(request.resource.data.msgId)).data.get('text', '') == request.resource.data.text;
+
+      // Admin only: mark a report as handled.
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'handledAt'])
+        && request.resource.data.status in ['resolved', 'dismissed']
+        && request.resource.data.handledAt == request.time;
+
+      allow delete: if false;
+    }
+
+    // ---- usernames: public, unique. usernames/{username} -> { uid, name } ----
+    // Anyone may check ONE username (get) so the register form can say
+    // "Username not available"; nobody can list them. A username can be
+    // claimed once, and only the owner can change the shown name.
+    match /usernames/{username} {
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if signedIn()
+        && validUsername(username)
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'userId'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 80;
+
+      // Owner may change the shown name, and add their InfiniX ID (userId) once.
+      allow update: if (signedIn()
+           && resource.data.uid == request.auth.uid
+           && request.resource.data.keys().hasOnly(['uid', 'name', 'userId'])
+           && request.resource.data.uid == resource.data.uid
+           && request.resource.data.get('userId', null) == resource.data.get('userId', null)
+           && request.resource.data.name is string
+           && request.resource.data.name.size() >= 1
+           && request.resource.data.name.size() <= 80)
+           || (signedIn()
+               && resource.data.uid == request.auth.uid
+               && !('userId' in resource.data)
+               && request.resource.data.keys().hasOnly(['uid', 'name', 'userId'])
+               && request.resource.data.uid == resource.data.uid
+               && request.resource.data.userId is string
+               && request.resource.data.userId.matches('SMR-[0-9]{5}')
+               && request.resource.data.name == resource.data.name);
 
       allow delete: if false;
     }
@@ -117,14 +319,15 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 80
         && !('userId' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data);
 
-      // Owner may change the displayed name only.
+      // Owner may change the displayed name and profile photo.
       allow update: if signedIn()
         && resource.data.uid == request.auth.uid
-        && request.resource.data.keys().hasOnly(['uid', 'name'])
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'photo'])
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
-        && request.resource.data.name.size() <= 80;
+        && request.resource.data.name.size() <= 80
+        && validPhoto(request.resource.data.get('photo', ''));
 
       allow delete: if false;
     }
@@ -166,7 +369,7 @@ service cloud.firestore {
     match /chats/{chatId} {
       allow read: if signedIn() && request.auth.uid in resource.data.members;
 
-      allow create: if signedIn()
+      allow create: if signedIn() && notBlocked()
         && request.resource.data.keys().hasOnly(['members', 'ids', 'updatedAt', 'lastText', 'lastSender', 'unread', 'seenAt', 'typing'])
         && request.resource.data.members is list
         && request.resource.data.members.size() == 2
@@ -175,7 +378,7 @@ service cloud.firestore {
         && request.resource.data.get('lastSender', request.auth.uid) == request.auth.uid
         && request.resource.data.updatedAt == request.time;
 
-      allow update: if signedIn()
+      allow update: if signedIn() && notBlocked()
         && request.auth.uid in resource.data.members
         && request.resource.data.members == resource.data.members
         && request.resource.data.keys().hasOnly(['members', 'ids', 'updatedAt', 'lastText', 'lastSender', 'unread', 'seenAt', 'typing'])
@@ -186,34 +389,175 @@ service cloud.firestore {
     }
 
     // ---- private chats ----
+    // A message is text, or a photo preview: photoId + thumb (small) + hasImage + imageBytes.
+    // The full photo lives in chats/{chatId}/photos/{photoId} so lists stay light.
     match /chats/{chatId}/messages/{msgId} {
       allow read: if signedIn()
         && request.auth.uid in chatId.split('_');
 
-      // text, optional reply + forwarded flag
+      // text, optional reply + forwarded flag, or a photo. Blocked users cannot send.
       allow create: if signedIn()
         && request.auth.uid in chatId.split('_')
-        && request.resource.data.keys().hasOnly(['text', 'senderId', 'createdAt', 'replyTo', 'forwarded'])
+        && notBlocked()
+        && request.resource.data.keys().hasOnly(['text', 'senderId', 'createdAt', 'replyTo', 'forwarded', 'photoId', 'thumb', 'hasImage', 'imageBytes'])
         && request.resource.data.senderId == request.auth.uid
         && request.resource.data.text is string
-        && request.resource.data.text.size() >= 1
         && request.resource.data.text.size() <= 1000
+        && (request.resource.data.text.size() >= 1 || 'photoId' in request.resource.data)
         && (!('replyTo' in request.resource.data) || request.resource.data.replyTo is map)
         && (!('forwarded' in request.resource.data) || request.resource.data.forwarded == true)
+        && (!('photoId' in request.resource.data)
+            || (request.resource.data.photoId is string
+                && request.resource.data.photoId.size() >= 1 && request.resource.data.photoId.size() <= 40
+                && request.resource.data.thumb is string && request.resource.data.thumb.size() <= 40000
+                && request.resource.data.hasImage == true
+                && request.resource.data.imageBytes is int
+                && request.resource.data.imageBytes > 0 && request.resource.data.imageBytes <= 700000))
         && request.resource.data.createdAt == request.time;
 
-      // "Delete for everyone": only the sender, and it only blanks the message.
-      allow update: if signedIn()
-        && request.auth.uid in chatId.split('_')
-        && ((resource.data.senderId == request.auth.uid
-             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text'])
+      allow update: if (signedIn()
+          && request.auth.uid in chatId.split('_')
+          && (
+            // "Delete for everyone": only the sender. Blanks the text and drops a photo.
+            (resource.data.senderId == request.auth.uid
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text', 'thumb', 'photoId', 'hasImage', 'imageBytes'])
              && request.resource.data.deleted == true
              && request.resource.data.text == '')
             // "Delete for me": any member may add only their own uid to hiddenFor
             || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hiddenFor'])
-                && request.auth.uid in request.resource.data.hiddenFor));
+                && request.auth.uid in request.resource.data.hiddenFor)
+            // Auto delete: any member may clear a photo once it is older than the admin's hours.
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['thumb', 'photoId', 'hasImage', 'imageExpired'])
+                && resource.data.get('hasImage', false) == true
+                && request.resource.data.get('hasImage', false) == false
+                && request.resource.data.imageExpired == true
+                && photoExpired(resource.data.createdAt))))
+        // Admin: remove a reported message (and its photo).
+        || (isAdmin()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text', 'thumb', 'photoId', 'hasImage', 'imageBytes', 'removedByAdmin'])
+            && request.resource.data.deleted == true
+            && request.resource.data.text == ''
+            && request.resource.data.removedByAdmin == true);
 
       allow delete: if false;
+    }
+
+    // ---- full-size chat photos (compressed, stored as text) ----
+    // Only the two people in the chat (and the admin, for reports) can read one.
+    // It is deleted by its sender, or by either person / the admin once it expires.
+    match /chats/{chatId}/photos/{photoId} {
+      allow read: if signedIn() && (request.auth.uid in chatId.split('_') || isAdmin());
+
+      allow create: if signedIn()
+        && request.auth.uid in chatId.split('_')
+        && notBlocked()
+        && request.resource.data.keys().hasOnly(['data', 'senderId', 'createdAt', 'bytes'])
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.data is string
+        && request.resource.data.data.size() >= 100 && request.resource.data.data.size() <= 700000
+        && request.resource.data.bytes is int
+        && request.resource.data.bytes > 0 && request.resource.data.bytes <= 700000
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if false;
+
+      allow delete: if isAdmin()
+        || (signedIn()
+            && request.auth.uid in chatId.split('_')
+            && (resource.data.senderId == request.auth.uid || photoExpired(resource.data.createdAt)));
+    }
+
+    // ---- directory: public card of each user, used for "People you may know" ----
+    // directory/{uid} -> { name, userId, username }. Same details people can already find by
+    // searching. Each user writes only their own card; a list query may fetch at most 30.
+    match /directory/{uid} {
+      allow get: if signedIn();
+      allow list: if signedIn() && request.query.limit <= 30;
+
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'userId', 'username'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.userId is string
+        && request.resource.data.userId.matches('SMR-[0-9]{5}')
+        && request.resource.data.username is string
+        && (request.resource.data.username == '' || validUsername(request.resource.data.username));
+
+      allow delete: if false;
+    }
+
+    // ---- notifications (bell icon): users/{uid}/notifications/{fromUid} ----
+    // New-follower notices. The follower writes ONE notice (id = their own uid) into the other
+    // person's list; only the owner can read, mark as read, or delete. New messages are not
+    // stored here: the bell builds them from the chat list, so they cost no extra reads.
+    match /users/{userId}/notifications/{nid} {
+      allow get: if signedIn() && request.auth.uid == userId;
+      allow list: if signedIn() && request.auth.uid == userId && request.query.limit <= 30;
+
+      allow create: if signedIn() && notBlocked()
+        && request.auth.uid != userId
+        && nid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['type', 'fromUid', 'fromName', 'createdAt', 'read'])
+        && request.resource.data.type == 'follow'
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.fromName is string
+        && request.resource.data.fromName.size() >= 1
+        && request.resource.data.fromName.size() <= 80
+        && request.resource.data.read == false
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read == true;
+
+      // Follow again after an unfollow: the follower refreshes their own notice (id = their uid).
+      allow update: if signedIn() && notBlocked()
+        && request.auth.uid != userId
+        && nid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['type', 'fromUid', 'fromName', 'createdAt', 'read'])
+        && request.resource.data.type == 'follow'
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.fromName is string
+        && request.resource.data.fromName.size() >= 1
+        && request.resource.data.fromName.size() <= 80
+        && request.resource.data.read == false
+        && request.resource.data.createdAt == request.time;
+
+      allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
+    // ---- follows: follows/{followerUid}_{followeeUid} ----
+    // One document per follow. It keeps both names so the Followers / Following lists need no
+    // extra reads. You can only list follows that involve YOU (your followers / who you follow).
+    match /follows/{fid} {
+      allow get: if signedIn()
+        && (fid.split('_')[0] == request.auth.uid || fid.split('_')[1] == request.auth.uid);
+
+      allow list: if signedIn()
+        && (!('limit' in request.query) || request.query.limit <= 100)
+        && resource.data.followerId == request.auth.uid;
+      allow list: if signedIn()
+        && (!('limit' in request.query) || request.query.limit <= 100)
+        && resource.data.followeeId == request.auth.uid;
+
+      allow create: if signedIn() && notBlocked()
+        && request.resource.data.keys().hasOnly(['followerId', 'followeeId', 'followerName', 'followerUserId', 'followeeName', 'followeeUserId', 'createdAt'])
+        && request.resource.data.followerId == request.auth.uid
+        && request.resource.data.followeeId is string
+        && request.resource.data.followeeId != request.auth.uid
+        && fid == request.auth.uid + '_' + request.resource.data.followeeId
+        && request.resource.data.followerName is string
+        && request.resource.data.followerName.size() >= 1 && request.resource.data.followerName.size() <= 80
+        && request.resource.data.followeeName is string
+        && request.resource.data.followeeName.size() >= 1 && request.resource.data.followeeName.size() <= 80
+        && request.resource.data.followerUserId is string && request.resource.data.followerUserId.size() <= 12
+        && request.resource.data.followeeUserId is string && request.resource.data.followeeUserId.size() <= 12
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.followerId == request.auth.uid;
     }
 
     // Everything else is closed by default.

@@ -1,24 +1,50 @@
 // =============================================================================
-// settings.js - change display name and password.
-// Name: updates Firebase Auth displayName + users/{uid}.name in Firestore.
-// Password: re-checks the current password, then sets the new one (Firebase Auth only).
+// settings.js - Settings menu: Profile, Password and Security, Privacy Policy,
+// Help, Logout.
+// Profile: name + date of birth are editable; username, email and ID are not.
+// Password: re-checks the current password, then sets the new one.
 // =============================================================================
 
 import { db } from "./firebase-config.js";
-import { ensureProfile, friendlyAuthError, renderUserChip, requireAuth } from "./auth.js";
+import { dobError, ensureProfile, friendlyAuthError, logout, renderUserChip, requireAuth } from "./auth.js";
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
   updateProfile,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { setFieldError, setLoading } from "./utils.js";
 import { ensureUserId, updateHandleName } from "./handle.js";
+import { imageToDataUrl } from "./photo.js";
+import { cacheUser } from "./auth.js";
 
+/* ------------------------------------------------------------- views --- */
+const views = [...document.querySelectorAll("[data-view]")];
+function route() {
+  const name = (location.hash || "").replace("#", "");
+  const target = views.some((v) => v.dataset.view === name) ? name : "menu";
+  views.forEach((v) => (v.hidden = v.dataset.view !== target));
+  window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+route();
+
+// "Download the app" makes no sense inside the installed app.
+try {
+  const inApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+    /; wv\)/.test(navigator.userAgent) ||
+    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+    window.navigator.standalone === true;
+  if (inApp) document.getElementById("dlLink").hidden = true;
+} catch {}
+
+document.getElementById("logoutBtn").addEventListener("click", logout);
+
+/* ----------------------------------------------------------- elements --- */
 const nameForm = document.getElementById("nameForm");
 const nameInput = document.getElementById("newName");
-const phoneInput = document.getElementById("newPhone");
+const dobInput = document.getElementById("newDob");
 const nameBtn = document.getElementById("nameBtn");
 const nameMsg = document.getElementById("nameMsg");
 
@@ -35,20 +61,26 @@ function show(box, type, text) {
   box.hidden = !text;
 }
 
+/* ------------------------------------------------------------ profile --- */
 const user = await requireAuth();
 let profile = await ensureProfile(user);
 renderUserChip(user, profile);
 nameInput.value = profile.name || "";
-phoneInput.value = profile.phone || "";
+dobInput.value = profile.dob || "";
+dobInput.max = new Date().toISOString().slice(0, 10);
+document.getElementById("usernameShow").value = profile.username || "";
+document.getElementById("emailShow").value = user.email || profile.email || "";
 
 // Your public ID (created the first time for older accounts)
 let myId = "";
 try {
+  myId = (JSON.parse(localStorage.getItem("lumio_user") || "{}").userId) || profile.userId || "";
+  if (myId) document.getElementById("myId").textContent = myId;
   myId = await ensureUserId(user, profile.name);
   document.getElementById("myId").textContent = myId;
 } catch (err) {
   console.error(err);
-  document.getElementById("myId").textContent = "Unavailable";
+  if (!myId) document.getElementById("myId").textContent = "Unavailable";
 }
 document.getElementById("copyId").addEventListener("click", async (e) => {
   try { await navigator.clipboard.writeText(myId); e.target.textContent = "Copied!"; }
@@ -56,12 +88,34 @@ document.getElementById("copyId").addEventListener("click", async (e) => {
   setTimeout(() => (e.target.textContent = "Copy"), 1500);
 });
 
-document.getElementById("showPassword").addEventListener("change", (e) => {
-  const type = e.target.checked ? "text" : "password";
-  [currentPw, newPw, confirmPw].forEach((i) => (i.type = type));
+/* ------------------------------------------------------- profile photo --- */
+const photoFile = document.getElementById("photoFile");
+const photoMsg = document.getElementById("photoMsg");
+document.getElementById("photoPen").addEventListener("click", () => photoFile.click());
+photoFile.addEventListener("change", async () => {
+  const file = photoFile.files && photoFile.files[0];
+  photoFile.value = "";
+  if (!file) return;
+  photoMsg.style.color = "";
+  photoMsg.textContent = "Saving photo...";
+  try {
+    // Small square JPEG (256 px) so it stays light on every page and in Firestore.
+    const photo = await imageToDataUrl(file, { max: 256, quality: 0.8, maxChars: 38000, square: true });
+    const batch = writeBatch(db);
+    batch.update(doc(db, "users", user.uid), { photo });
+    if (myId) batch.update(doc(db, "handles", myId), { photo });
+    await batch.commit();
+    profile = { ...profile, photo };
+    cacheUser({ uid: user.uid, photo });
+    renderUserChip(user, profile);
+    photoMsg.textContent = "Photo saved.";
+  } catch (err) {
+    console.error(err);
+    photoMsg.style.color = "var(--danger)";
+    photoMsg.textContent = err && err.message && /image/i.test(err.message) ? err.message : "Could not save your photo. Please try again.";
+  }
 });
 
-// ---- Change name ------------------------------------------------------------
 nameForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   show(nameMsg, "success", "");
@@ -71,27 +125,38 @@ nameForm.addEventListener("submit", async (e) => {
   if (name.length > 80) return setFieldError(nameInput, "Name is too long (80 characters max).");
   setFieldError(nameInput, "");
 
-  const phone = phoneInput.value.replace(/[\s-]/g, "");
-  if (phone && !/^\+?[0-9]{10,15}$/.test(phone)) return setFieldError(phoneInput, "Enter a valid mobile number (10-15 digits).");
-  setFieldError(phoneInput, "");
+  const dob = dobInput.value;
+  if (dob) {
+    const de = dobError(dob);
+    if (de) return setFieldError(dobInput, de);
+  }
+  setFieldError(dobInput, "");
 
   setLoading(nameBtn, true, "Saving...");
   try {
     await updateProfile(user, { displayName: name });
-    await updateDoc(doc(db, "users", user.uid), { name, phone });
-    if (myId) await updateHandleName(myId, name);
-    profile = { ...profile, name, phone };
+    await updateDoc(doc(db, "users", user.uid), { name, dob });
+    if (myId) { try { await updateHandleName(myId, name); } catch (err) { console.warn(err); } }
+    if (profile.username && name !== profile.name) {
+      try { await updateDoc(doc(db, "usernames", profile.username), { name }); } catch (err) { console.warn(err); }
+    }
+    profile = { ...profile, name, dob };
     renderUserChip(user, profile);
     show(nameMsg, "success", "Saved.");
   } catch (err) {
     console.error(err);
-    show(nameMsg, "error", "Could not update name. Please try again.");
+    show(nameMsg, "error", "Could not save your profile. Please try again.");
   } finally {
     setLoading(nameBtn, false);
   }
 });
 
-// ---- Change password --------------------------------------------------------
+/* ----------------------------------------------------------- password --- */
+document.getElementById("showPassword").addEventListener("change", (e) => {
+  const type = e.target.checked ? "text" : "password";
+  [currentPw, newPw, confirmPw].forEach((i) => (i.type = type));
+});
+
 pwForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   show(pwMsg, "error", "");

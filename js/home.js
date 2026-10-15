@@ -1,206 +1,280 @@
 // =============================================================================
-// home.js - the home page: video feed, search and photo gallery.
+// home.js - home page: greeting + birthday banner (no Firebase reads beyond the
+// profile that every page already loads once).
 // =============================================================================
 
-import { ensureProfile, renderUserChip, requireAuth } from "./auth.js";
-import { fetchImages, fetchVideos } from "./data.js";
+import { getProfileCached, renderUserChip, requireAuth } from "./auth.js";
+
+/** True when today (device date) is the user's birthday. dob is "YYYY-MM-DD". */
+function isBirthdayToday(dob) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob || "");
+  if (!m) return false;
+  const now = new Date();
+  const month = Number(m[2]);
+  let day = Number(m[3]);
+  // Born on 29 Feb: celebrate on 28 Feb in years that have no 29 Feb.
+  const leap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  if (month === 2 && day === 29 && !leap(now.getFullYear())) day = 28;
+  return now.getMonth() + 1 === month && now.getDate() === day;
+}
+
+function greetingWord() {
+  const h = new Date().getHours();
+  if (h < 5) return "Hello";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  if (h < 21) return "Good evening";
+  return "Hello";
+}
+
+document.getElementById("greetWord").textContent = greetingWord();
+
+// Show the banner instantly from the cached copy (saved on the last visit)...
+try {
+  const c = JSON.parse(localStorage.getItem("lumio_user") || "null");
+  if (c && isBirthdayToday(c.dob)) document.getElementById("birthday").hidden = false;
+} catch {}
+
+// ...then confirm with the real profile.
+const user = await requireAuth();
+const profile = await getProfileCached(user);   // no Firestore read if loaded in the last 10 minutes
+renderUserChip(user, profile);
+document.getElementById("birthday").hidden = !isBirthdayToday(profile.dob);
+
+// =============================================================================
+// Bell (notifications), "Your friends", "People you may know".
+// Reads kept low: friends + unread messages come from data already on this device;
+// follower notices are fetched at most every 2 minutes; suggestions at most every 6 hours.
+// =============================================================================
+import { db } from "./firebase-config.js";
 import {
-  $,
-  PLACEHOLDER_THUMB,
-  debounce,
-  escapeHTML,
-  formatDate,
-  formatDuration,
-} from "./utils.js";
+  collection, query, orderBy, limit, getDocs, doc, setDoc, writeBatch, documentId, startAt,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { follow, getFollowing, cachedFollowing } from "./follow.js";
 
-const grid = $("#videoGrid");
-const resultsInfo = $("#resultsInfo");
-const searchInput = $("#searchInput");
-const searchForm = $("#searchForm");
+const uid = user.uid;
+const $ = (id) => document.getElementById(id);
+const lsGet = (k, f) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? f; } catch { return f; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const initialsOf = (n) => String(n || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "?";
 
-let allVideos = [];
-let allImages = [];
-
-const PLAY_ICON =
-  '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>';
-
-init();
-
-async function init() {
-  const user = await requireAuth(); // redirects to login.html if signed out
-  if (!grid.querySelector(".skeleton")) renderSkeletons();
-
-  // Pre-fill the search box from ?q=... (used by the search box on the watch page).
-  const initialQuery = new URLSearchParams(location.search).get("q") || "";
-  searchInput.value = initialQuery;
-
-  // Run everything at the same time instead of one after another.
-  const profileDone = ensureProfile(user).then((profile) => renderUserChip(user, profile));
-  await Promise.all([profileDone, loadVideos(), loadImages()]);
+function avatar(name, photo) {
+  const a = document.createElement("span");
+  a.className = "avatar";
+  a.setAttribute("aria-hidden", "true");
+  if (typeof photo === "string" && photo.startsWith("data:image/")) {
+    a.classList.add("has-photo");
+    a.style.backgroundImage = "url(" + photo + ")";
+  } else a.textContent = initialsOf(name);
+  return a;
 }
-
-/* ---------------------------------------------------------------- videos -- */
-
-async function loadVideos() {
-  try {
-    const { videos, demo } = await fetchVideos();
-    allVideos = videos;
-    $("#demoNotice").hidden = !demo;
-    applySearch();
-  } catch (err) {
-    console.error(err);
-    showError(
-      err?.code === "permission-denied"
-        ? "Firestore denied access. Publish firestore.rules (see README) and make sure you're logged in."
-        : "We couldn't load videos. Check your connection and try again."
-    );
-  } finally {
-    grid.setAttribute("aria-busy", "false");
-  }
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
 }
+const contacts = () => lsGet("lumio_contacts_" + uid, []);
 
-function renderSkeletons(count = 8) {
-  grid.innerHTML = Array.from({ length: count }, () => `
-    <div class="video-card skeleton" aria-hidden="true">
-      <div class="thumb"></div>
-      <div class="card-body"><div class="line"></div><div class="line short"></div></div>
-    </div>`).join("");
-}
-
-function videoCard(v) {
-  const duration = formatDuration(v.duration);
-  const href = `watch.html?id=${encodeURIComponent(v.id)}`;
-  return `
-    <article class="video-card">
-      <a class="video-card-link" href="${href}" aria-label="Watch ${escapeHTML(v.title)}">
-        <div class="thumb">
-          <img src="${escapeHTML(v.thumbnailUrl || PLACEHOLDER_THUMB)}" alt="" loading="lazy" width="640" height="360">
-          ${duration ? `<span class="duration-badge">${duration}</span>` : ""}
-          <span class="thumb-play" aria-hidden="true">${PLAY_ICON}</span>
-        </div>
-        <div class="card-body">
-          <h3 class="card-title">${escapeHTML(v.title)}</h3>
-          <p class="card-desc">${escapeHTML(v.description || "")}</p>
-          <p class="card-meta">
-            ${v.uploaderName ? `<span>${escapeHTML(v.uploaderName)}</span>` : ""}
-            <span>${escapeHTML(formatDate(v.createdAt))}</span>
-          </p>
-        </div>
-      </a>
-    </article>`;
-}
-
-function renderVideos(videos, query = "") {
-  if (!videos.length) {
-    grid.innerHTML = `
-      <div class="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8.5 11h5"/></svg>
-        <h3>${query ? "No videos match your search" : "No videos yet"}</h3>
-        <p>${query ? `Nothing found for "${escapeHTML(query)}". Try a different word.` : "Check back soon, or upload the first one."}</p>
-        ${query ? '<button class="btn btn-ghost" type="button" id="clearSearch">Clear search</button>' : ""}
-      </div>`;
-    $("#clearSearch")?.addEventListener("click", () => {
-      searchInput.value = "";
-      applySearch();
-      searchInput.focus();
-    });
-    return;
-  }
-  grid.innerHTML = videos.map(videoCard).join("");
-  // If a thumbnail fails to load, swap in the placeholder.
-  grid.querySelectorAll(".thumb img").forEach((img) =>
-    img.addEventListener("error", () => (img.src = PLACEHOLDER_THUMB), { once: true })
-  );
-}
-
-function showError(message) {
-  grid.innerHTML = `
-    <div class="empty-state" role="alert">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.01"/></svg>
-      <h3>Something went wrong</h3>
-      <p>${escapeHTML(message)}</p>
-      <button class="btn btn-primary" type="button" id="retryBtn"><span class="btn-label">Try again</span></button>
-    </div>`;
-  resultsInfo.textContent = "";
-  $("#retryBtn").addEventListener("click", () => {
-    renderSkeletons();
-    grid.setAttribute("aria-busy", "true");
-    loadVideos();
+/* -------------------------------------------------------- your friends --- */
+function renderFriends() {
+  // People you chat with + people you follow (no duplicates).
+  const seen = new Set(), list = [];
+  [...contacts(), ...cachedFollowing(uid)].forEach((c) => { if (c.uid && !seen.has(c.uid)) { seen.add(c.uid); list.push(c); } });
+  list.splice(15);
+  const row = $("friendsRow");
+  row.replaceChildren();
+  $("friendsEmpty").hidden = list.length > 0;
+  list.forEach((c) => {
+    const a = el("a", "ix-friend");
+    a.href = "chat.html?open=" + encodeURIComponent(c.uid);
+    a.append(avatar(c.name, c.photo), el("span", "nm", String(c.name || "User").split(/\s+/)[0]));
+    row.append(a);
   });
 }
 
-/* ---------------------------------------------------------------- search -- */
+/* ------------------------------------------------ people you may know --- */
+const SUG_KEY = "ix_suggest_" + uid;
+const SUG_TTL = 6 * 3600 * 1000;
 
-// A video matches when EVERY word typed appears in its title, description,
-// tags or uploader name (case-insensitive).
-function applySearch() {
-  const query = searchInput.value.trim();
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-
-  const matches = words.length
-    ? allVideos.filter((v) => {
-        const haystack = [v.title, v.description, v.uploaderName, ...(v.tags || [])]
-          .join(" ")
-          .toLowerCase();
-        return words.every((w) => haystack.includes(w));
-      })
-    : allVideos;
-
-  renderVideos(matches, query);
-  resultsInfo.textContent = query
-    ? `${matches.length} result${matches.length === 1 ? "" : "s"} for "${query}"`
-    : allVideos.length
-    ? `${allVideos.length} video${allVideos.length === 1 ? "" : "s"}`
-    : "";
-  $("#videosTitle").textContent = query ? "Search results" : "Latest videos";
-
-  // Keep the URL shareable without adding history entries.
-  const url = new URL(location.href);
-  if (query) url.searchParams.set("q", query);
-  else url.searchParams.delete("q");
-  history.replaceState(null, "", url);
+async function fetchSuggestions() {
+  const col = collection(db, "directory");
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let rand = "";
+  for (let i = 0; i < 28; i++) rand += chars[Math.floor(Math.random() * chars.length)];
+  const out = new Map();
+  const add = (snap) => snap.forEach((d) => {
+    const x = d.data();
+    if (d.id !== uid && x.name && x.userId) out.set(d.id, { uid: d.id, name: x.name, id: x.userId, username: x.username || "" });
+  });
+  add(await getDocs(query(col, orderBy(documentId()), startAt(rand), limit(20))));
+  if (out.size < 12) add(await getDocs(query(col, orderBy(documentId()), limit(20))));   // wrap around
+  return [...out.values()];
 }
 
-searchInput.addEventListener("input", debounce(applySearch, 180));
-searchForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  applySearch();
-});
-
-/* ---------------------------------------------------------------- photos -- */
-
-async function loadImages() {
-  try {
-    const { images } = await fetchImages();
-    allImages = images;
-    if (!images.length) return;
-    $("#photoGrid").innerHTML = images
-      .map(
-        (img, i) => `
-        <button class="photo" type="button" data-index="${i}" aria-label="View photo: ${escapeHTML(img.title)}">
-          <img src="${escapeHTML(img.imageUrl)}" alt="${escapeHTML(img.title)}" loading="lazy">
-          <span>${escapeHTML(img.title)}</span>
-        </button>`
-      )
-      .join("");
-    $("#photosSection").hidden = false;
-  } catch (err) {
-    // The photo section is optional - just leave it hidden if it can't load.
-    console.warn("Photos could not be loaded:", err);
+function messageUser(p) {
+  const list = contacts();
+  if (!list.some((c) => c.uid === p.uid)) {
+    list.unshift({ uid: p.uid, name: p.name, id: p.id, photo: "", at: Date.now() });
+    lsSet("lumio_contacts_" + uid, list);
   }
+  location.href = "chat.html?open=" + encodeURIComponent(p.uid);
 }
 
-const lightbox = $("#lightbox");
-$("#photoGrid").addEventListener("click", (e) => {
-  const btn = e.target.closest(".photo");
-  if (!btn) return;
-  const image = allImages[Number(btn.dataset.index)];
-  $("#lightboxImg").src = image.imageUrl;
-  $("#lightboxImg").alt = image.title;
-  $("#lightboxCaption").textContent = image.title;
-  lightbox.showModal();
+function renderSuggestions(items) {
+  const known = new Set([...contacts(), ...cachedFollowing(uid)].map((c) => c.uid));
+  const show = (items || []).filter((p) => p.uid !== uid && !known.has(p.uid)).slice(0, 6);
+  const box = $("sugList");
+  box.replaceChildren();
+  $("sugEmpty").hidden = show.length > 0;
+  show.forEach((p) => {
+    const row = el("article", "ix-person");
+    const text = el("div", "ix-person-text");
+    text.append(el("strong", "", p.name), el("small", "", p.id + (p.username ? " \u00b7 @" + p.username : "")));
+    const btn = el("button", "btn btn-ghost btn-sm", "Message");
+    btn.type = "button";
+    btn.addEventListener("click", () => messageUser(p));
+    const fb = el("button", "btn btn-primary btn-sm", "Follow");
+    fb.type = "button";
+    fb.addEventListener("click", async () => {
+      fb.disabled = true;
+      try { await follow(uid, p); fb.textContent = "Following"; fb.className = "btn btn-ghost btn-sm"; renderFriends(); }
+      catch (e) { console.warn(e); fb.disabled = false; }
+    });
+    const actions = el("div", "ix-actions");
+    actions.append(fb, btn);
+    const av = avatar(p.name, ""); av.classList.add("avatar-lg");
+    row.append(av, text, actions);
+    box.append(row);
+  });
+}
+
+async function loadSuggestions() {
+  const c = lsGet(SUG_KEY, null);
+  if (c && Array.isArray(c.items)) renderSuggestions(c.items);            // instant, from this device
+  if (c && Date.now() - c.at < SUG_TTL) return;                          // fresh enough: 0 reads
+  try {
+    const items = await fetchSuggestions();
+    lsSet(SUG_KEY, { at: Date.now(), items });
+    renderSuggestions(items);
+  } catch (e) { console.warn("Suggestions unavailable:", e); }
+}
+
+// Publish my own card so other people can see me in their suggestions (only when it changed).
+async function syncDirectory() {
+  if (!profile.userId || !profile.name) return;
+  const sig = [profile.name, profile.userId, profile.username || ""].join("|");
+  if (lsGet("ix_dir_" + uid, "") === sig) return;
+  try {
+    await setDoc(doc(db, "directory", uid), { name: profile.name, userId: profile.userId, username: profile.username || "" });
+    lsSet("ix_dir_" + uid, sig);
+  } catch (e) { console.warn("Could not update the directory:", e); }
+}
+
+/* ------------------------------------------------------------- the bell --- */
+const NOTIF_KEY = "ix_notifs_" + uid;
+let notifs = lsGet(NOTIF_KEY, { at: 0, items: [] });   // follower notices: { id, name, ms, read }
+let highlight = new Set();                              // notices that were unread when the panel opened
+
+function nameOf(uid2, fallbackId) {
+  const c = contacts().find((x) => x.uid === uid2);
+  return (c && c.name) || fallbackId || "Someone";
+}
+function entries() {
+  const msgs = lsGet("ix_inbox_" + uid, []).map((m) => ({
+    kind: "message", ms: m.ms || 0, uid: m.uid, name: nameOf(m.uid, m.id), unread: m.unread, text: m.text,
+  }));
+  const follows = (notifs.items || []).map((n) => ({ kind: "follow", ms: n.ms || 0, id: n.id, name: n.name, read: n.read }));
+  return [...msgs, ...follows].sort((a, b) => b.ms - a.ms).slice(0, 25);
+}
+function unreadCount() {
+  const m = lsGet("ix_inbox_" + uid, []).reduce((n, x) => n + (x.unread || 0), 0);
+  const f = (notifs.items || []).filter((n) => !n.read).length;
+  return m + f;
+}
+function paintBadge() {
+  const n = unreadCount();
+  const b = $("bellBadge");
+  b.textContent = n > 99 ? "99+" : String(n);
+  b.hidden = n === 0;
+}
+function paintList() {
+  const box = $("bellList");
+  box.replaceChildren();
+  const list = entries();
+  if (!list.length) { box.append(el("div", "bell-empty", "No notifications yet.")); return; }
+  list.forEach((e) => {
+    let row;
+    if (e.kind === "message") {
+      row = el("a", "bell-item new");
+      row.href = "chat.html?open=" + encodeURIComponent(e.uid);
+      const t = el("div", "bell-text");
+      t.append(el("strong", "", "New message from " + e.name),
+               el("small", "", (e.unread > 1 ? e.unread + " new messages \u00b7 " : "") + (e.text || "Open chat")));
+      row.append(avatar(e.name, ""), t);
+    } else {
+      row = el("div", "bell-item" + (highlight.has(e.id) || !e.read ? " new" : ""));
+      const t = el("div", "bell-text");
+      t.append(el("strong", "", e.name + " started following you"), el("small", "", "New follower"));
+      row.append(avatar(e.name, ""), t);
+    }
+    box.append(row);
+  });
+}
+
+async function loadFollowNotices(force) {
+  if (!force && Date.now() - (notifs.at || 0) < 2 * 60 * 1000) return;      // fresh: 0 reads
+  try {
+    const snap = await getDocs(query(collection(db, "users", uid, "notifications"), orderBy("createdAt", "desc"), limit(20)));
+    const items = [];
+    snap.forEach((d) => {
+      const x = d.data();
+      items.push({ id: d.id, name: x.fromName || "Someone", read: x.read === true,
+                   ms: x.createdAt && x.createdAt.toMillis ? x.createdAt.toMillis() : Date.now() });
+    });
+    notifs = { at: Date.now(), items };
+    lsSet(NOTIF_KEY, notifs);
+    paintBadge();
+    if (!$("bellPanel").hidden) paintList();
+  } catch (e) { console.warn("Notifications unavailable:", e); }
+}
+
+async function markFollowRead() {
+  const unread = (notifs.items || []).filter((n) => !n.read);
+  if (!unread.length) return;
+  highlight = new Set(unread.map((n) => n.id));
+  unread.forEach((n) => { n.read = true; });
+  lsSet(NOTIF_KEY, notifs);
+  try {
+    const batch = writeBatch(db);
+    unread.forEach((n) => batch.update(doc(db, "users", uid, "notifications", n.id), { read: true }));
+    await batch.commit();
+  } catch (e) { console.warn("Could not mark notifications as read:", e); }
+}
+
+function closeBell() {
+  $("bellPanel").hidden = true;
+  $("bellBtn").setAttribute("aria-expanded", "false");
+  highlight = new Set();
+  paintBadge();
+}
+$("bellBtn").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  const open = $("bellPanel").hidden;
+  if (!open) return closeBell();
+  paintList();
+  $("bellPanel").hidden = false;
+  $("bellBtn").setAttribute("aria-expanded", "true");
+  markFollowRead().then(paintBadge);
 });
-$("#lightboxClose").addEventListener("click", () => lightbox.close());
-lightbox.addEventListener("click", (e) => {
-  if (e.target === lightbox) lightbox.close(); // click on the dark backdrop
-});
+document.addEventListener("click", (e) => { if (!$("bellPanel").hidden && !e.target.closest(".bell-wrap")) closeBell(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("bellPanel").hidden) closeBell(); });
+window.addEventListener("ix:inbox", () => { paintBadge(); if (!$("bellPanel").hidden) paintList(); });
+
+/* ----------------------------------------------------------------- start --- */
+renderFriends();
+getFollowing(uid, false, 30 * 60 * 1000).then(renderFriends);   // refreshed at most every 30 min
+paintBadge();
+loadFollowNotices(false);
+loadSuggestions();
+syncDirectory();
