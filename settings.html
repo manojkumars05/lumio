@@ -45,6 +45,14 @@
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg>
           <span>Help</span><i aria-hidden="true">&rsaquo;</i>
         </a>
+        <a href="#invite" class="ix-menu-item" id="inviteLink" hidden>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6"/></svg>
+          <span>Invite friends</span><i aria-hidden="true">&rsaquo;</i>
+        </a>
+        <a href="download.html" class="ix-menu-item" id="dlLink">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+          <span>Download the app</span><i aria-hidden="true">&rsaquo;</i>
+        </a>
         <button type="button" class="ix-menu-item ix-menu-danger" id="logoutBtn">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
           <span>Logout</span>
@@ -177,13 +185,33 @@
       </article>
     </section>
 
+    <!-- ===== Invite friends (installed app + computers only) ===== -->
+    <section data-view="invite" hidden>
+      <a href="#" class="ix-back">&larr; Settings</a>
+      <h1 class="ix-title">Invite friends</h1>
+      <section class="auth-card">
+        <p class="muted" style="margin-top:0;">Share InfiniX with your friends. They open a page with a button to join or download the app.</p>
+        <div class="field">
+          <label for="inviteUrl">Your invite link</label>
+          <input id="inviteUrl" type="text" readonly>
+        </div>
+        <button class="btn btn-primary btn-block" type="button" id="inviteShare">Share invite</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+          <button class="btn btn-ghost btn-sm" type="button" id="inviteCopy">Copy link</button>
+          <a class="btn btn-ghost btn-sm" id="inviteWa" target="_blank" rel="noopener">WhatsApp</a>
+          <a class="btn btn-ghost btn-sm" id="inviteTg" target="_blank" rel="noopener">Telegram</a>
+          <a class="btn btn-ghost btn-sm" id="inviteMail">Email</a>
+        </div>
+        <div class="hint" id="inviteMsg" aria-live="polite"></div>
+      </section>
+    </section>
+
     <!-- ===== Help ===== -->
     <section data-view="help" hidden>
       <a href="#" class="ix-back">&larr; Settings</a>
       <h1 class="ix-title">Help</h1>
       <div class="ix-menu">
         <a href="support.html" class="ix-menu-item"><span>Contact support</span><i aria-hidden="true">&rsaquo;</i></a>
-        <a href="download.html" class="ix-menu-item" id="dlLink"><span>Download the app</span><i aria-hidden="true">&rsaquo;</i></a>
       </div>
     </section>
   </main>

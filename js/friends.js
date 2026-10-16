@@ -5,6 +5,7 @@
 // =============================================================================
 
 import { requireAuth } from "./auth.js";
+import { applyPhoto } from "./avatars.js";
 import { follow, unfollow, getFollowers, getFollowing, getCounts, cachedCounts, cachedFollowing } from "./follow.js";
 
 const user = await requireAuth();
@@ -36,7 +37,7 @@ function openChat(p) {
 function row(p, withFollow) {
   const r = el("article", "ix-person");
   const av = el("span", "avatar avatar-lg", initials(p.name));
-  if (typeof p.photo === "string" && p.photo.startsWith("data:image/")) { av.textContent = ""; av.classList.add("has-photo"); av.style.backgroundImage = "url(" + p.photo + ")"; }
+  applyPhoto(av, p.uid, p.id, p.photo);
   const t = el("div", "ix-person-text");
   t.append(el("strong", "", p.name || "User"), el("small", "", p.id || ""));
   const actions = el("div", "ix-actions");
@@ -86,16 +87,31 @@ async function show(name) {
   // Show the saved copy at once, then refresh if it is older than 5 minutes.
   const cached = lsGet("ix_" + name + "_" + uid, null);
   if (cached) render(cached.items, true, name); else { box.replaceChildren(); empty.hidden = true; }
-  const items = await (name === "followers" ? getFollowers(uid) : getFollowing(uid));
+  const items = await (name === "followers" ? getFollowers(uid, false, 60000) : getFollowing(uid, false, 60000));
   if (tab !== name) return;
   if (name === "following") followingSet = new Set(items.map((x) => x.uid));
   else followingSet = new Set(cachedFollowing(uid).map((x) => x.uid));
   render(items, true, name);
+  paintCounts(cachedCounts(uid));
 }
 
 document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
 
+// Someone just followed you. sidebar.js already notices this once (1 read, no timer) and fires
+// this event: show +1 straight away, then fetch the exact number, and refresh the list if it is open.
+window.addEventListener("ix:followers", () => {
+  paintCounts(cachedCounts(uid));
+  getCounts(uid, true).then(paintCounts);
+  if (tab === "followers") show("followers");
+});
+
 paintCounts(cachedCounts(uid));
+// Someone just followed me: the sidebar listener fires this once, so refresh once.
+window.addEventListener("ix:followers", () => {
+  paintCounts(cachedCounts(uid));
+  getCounts(uid, true).then(paintCounts);
+  if (tab === "followers") show("followers");
+});
 show("friends");
-getCounts(uid).then(paintCounts);
-getFollowing(uid).then((items) => { followingSet = new Set(items.map((x) => x.uid)); });
+getCounts(uid, true).then(paintCounts);
+getFollowing(uid, false, 60000).then((items) => { followingSet = new Set(items.map((x) => x.uid)); });

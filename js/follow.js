@@ -10,6 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const TTL = 5 * 60 * 1000;
+const COUNT_TTL = 30 * 1000;   // count queries cost 1 read each, so keep the numbers fresh
 const lsGet = (k, f) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? f; } catch { return f; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const myCard = () => lsGet("lumio_user", {});
@@ -52,8 +53,15 @@ export async function unfollow(me, themUid) {
 }
 
 function bumpCount(me, key, d) {
-  const c = lsGet("ix_fcounts_" + me, null);
-  if (c) { c[key] = Math.max(0, (c[key] || 0) + d); lsSet("ix_fcounts_" + me, c); }
+  const c = lsGet("ix_fcounts_" + me, { at: 0, followers: 0, following: 0 });
+  c[key] = Math.max(0, (c[key] || 0) + d);
+  lsSet("ix_fcounts_" + me, c);
+}
+// When a full list is loaded (under the 100 limit) its length IS the exact count.
+function setCount(me, key, n) {
+  const c = lsGet("ix_fcounts_" + me, { at: 0, followers: 0, following: 0 });
+  c[key] = n;
+  lsSet("ix_fcounts_" + me, c);
 }
 
 async function fetchList(me, kind, force, ttl = TTL) {
@@ -75,6 +83,7 @@ async function fetchList(me, kind, force, ttl = TTL) {
     });
     items.sort((a, b) => b.ms - a.ms);
     lsSet(key, { at: Date.now(), items });
+    if (items.length < 100) setCount(me, kind, items.length);
     return items;
   } catch (e) {
     console.warn("Could not load " + kind + ":", e);
@@ -88,7 +97,7 @@ export const cachedFollowing = (me) => lsGet("ix_following_" + me, { items: [] }
 /** { followers, following } using cheap count queries (cached 5 min). */
 export async function getCounts(me, force) {
   const c = lsGet("ix_fcounts_" + me, null);
-  if (!force && c && Date.now() - c.at < TTL) return c;
+  if (!force && c && Date.now() - c.at < COUNT_TTL) return c;
   try {
     const col = collection(db, "follows");
     const [a, b] = await Promise.all([

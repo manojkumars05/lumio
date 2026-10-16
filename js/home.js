@@ -51,6 +51,7 @@ import {
   collection, query, orderBy, limit, getDocs, doc, setDoc, writeBatch, documentId, startAt,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { follow, getFollowing, cachedFollowing } from "./follow.js";
+import { applyPhoto } from "./avatars.js";
 
 const uid = user.uid;
 const $ = (id) => document.getElementById(id);
@@ -58,7 +59,7 @@ const lsGet = (k, f) => { try { const v = JSON.parse(localStorage.getItem(k)); r
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const initialsOf = (n) => String(n || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "?";
 
-function avatar(name, photo) {
+function avatar(name, photo, p) {
   const a = document.createElement("span");
   a.className = "avatar";
   a.setAttribute("aria-hidden", "true");
@@ -66,6 +67,7 @@ function avatar(name, photo) {
     a.classList.add("has-photo");
     a.style.backgroundImage = "url(" + photo + ")";
   } else a.textContent = initialsOf(name);
+  if (p && p.uid) applyPhoto(a, p.uid, p.id, photo);   // everyone's profile photo, not only yours
   return a;
 }
 function el(tag, cls, text) {
@@ -88,7 +90,7 @@ function renderFriends() {
   list.forEach((c) => {
     const a = el("a", "ix-friend");
     a.href = "chat.html?open=" + encodeURIComponent(c.uid);
-    a.append(avatar(c.name, c.photo), el("span", "nm", String(c.name || "User").split(/\s+/)[0]));
+    a.append(avatar(c.name, c.photo, c), el("span", "nm", String(c.name || "User").split(/\s+/)[0]));
     row.append(a);
   });
 }
@@ -143,7 +145,7 @@ function renderSuggestions(items) {
     });
     const actions = el("div", "ix-actions");
     actions.append(fb, btn);
-    const av = avatar(p.name, ""); av.classList.add("avatar-lg");
+    const av = avatar(p.name, "", p); av.classList.add("avatar-lg");
     row.append(av, text, actions);
     box.append(row);
   });
@@ -211,12 +213,12 @@ function paintList() {
       const t = el("div", "bell-text");
       t.append(el("strong", "", "New message from " + e.name),
                el("small", "", (e.unread > 1 ? e.unread + " new messages \u00b7 " : "") + (e.text || "Open chat")));
-      row.append(avatar(e.name, ""), t);
+      row.append(avatar(e.name, "", contacts().find((x) => x.uid === e.uid) || { uid: e.uid }), t);
     } else {
       row = el("div", "bell-item" + (highlight.has(e.id) || !e.read ? " new" : ""));
       const t = el("div", "bell-text");
       t.append(el("strong", "", e.name + " started following you"), el("small", "", "New follower"));
-      row.append(avatar(e.name, ""), t);
+      row.append(avatar(e.name, "", { uid: e.id }), t);
     }
     box.append(row);
   });
@@ -276,5 +278,6 @@ renderFriends();
 getFollowing(uid, false, 30 * 60 * 1000).then(renderFriends);   // refreshed at most every 30 min
 paintBadge();
 loadFollowNotices(false);
+window.addEventListener("ix:followers", () => loadFollowNotices(true));   // new follower: refresh the bell once
 loadSuggestions();
 syncDirectory();

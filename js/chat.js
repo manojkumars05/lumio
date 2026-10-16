@@ -15,7 +15,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { cacheUser, ensureUsername, getProfileCached, logout } from "./auth.js";
 import { ensureUserId, findByUserId, normalizeId } from "./handle.js";
-import { imageToDataUrl } from "./photo.js";
+import { imageToDataUrl, makeThumb } from "./photo.js";
+import { applyPhoto } from "./avatars.js";
 
 const $ = (id) => document.getElementById(id);
 const PAGE = 40;                              // messages loaded at once
@@ -56,9 +57,11 @@ function toast(text) {
   t.className = "toast"; t.textContent = text; document.body.appendChild(t);
   setTimeout(() => t.remove(), 2600);
 }
-function paintAvatar(el, name) {
+function paintAvatar(el, name, c) {
   el.textContent = (name || "?").charAt(0).toUpperCase();
   el.style.backgroundImage = "";
+  el.classList.remove("has-photo");
+  if (c && c.uid) applyPhoto(el, c.uid, c.id, c.photo);   // show their profile photo
 }
 
 /* ---------------------------------------------------------------- viewport --- */
@@ -401,7 +404,7 @@ function contactRow(c, onClick, showBadge) {
   b.dataset.uid = c.uid;
   const av = document.createElement("div");
   av.className = "avatar";
-  paintAvatar(av, c.name);
+  paintAvatar(av, c.name, c);
   const info = document.createElement("div");
   info.className = "meta";
   const nm = document.createElement("strong");
@@ -454,7 +457,7 @@ function openChat(otherUid) {
   markRead(otherUid);
   $("peerName").textContent = c.name || "User";
   $("peerAvatar").hidden = false;
-  paintAvatar($("peerAvatar"), c.name);
+  paintAvatar($("peerAvatar"), c.name, c);
   renderStatus();
   $("composer").hidden = false;
   $("themeBtn").hidden = false;
@@ -821,7 +824,7 @@ async function preparePhoto(file) {
   try {
     // Shrink before sending: long side 1280px, JPEG; small thumbnail for the chat.
     const full = await imageToDataUrl(file, { max: 1280, quality: 0.72, maxChars: 480000 });
-    const thumb = await imageToDataUrl(file, { max: 220, quality: 0.6, maxChars: 30000 });
+    const thumb = await makeThumb(file, { width: 300, maxHeight: 380, quality: 0.62, maxChars: 36000 });
     pending = { full, thumb, bytes: full.length, target };
     $("previewImg").src = full;
     $("previewImg").hidden = false;

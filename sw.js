@@ -5,11 +5,11 @@
 //    Home / Search / Chat / Friends / Settings feels instant and works with a weak connection.
 // After you publish a new version, the new files appear on the next visit (open the app twice).
 // Bump CACHE below if you ever need to force everyone onto a fresh copy.
-const CACHE = "infinix-v5";
+const CACHE = "infinix-v7";
 const SHELL = [
-  "home.html", "search.html", "chat.html", "friends.html", "settings.html",
+  "home.html", "search.html", "chat.html", "friends.html", "settings.html", "invite.html",
   "css/style.css", "js/boot.js", "js/firebase-config.js", "js/auth.js", "js/utils.js",
-  "js/sidebar.js", "js/home.js", "js/follow.js", "js/friends.js", "js/search.js", "js/handle.js", "js/photo.js", "js/chat.js",
+  "js/sidebar.js", "js/home.js", "js/follow.js", "js/friends.js", "js/search.js", "js/handle.js", "js/photo.js", "js/avatars.js", "js/chat.js",
   "assets/images/logo.svg", "manifest.json",
 ];
 

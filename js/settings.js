@@ -192,3 +192,52 @@ pwForm.addEventListener("submit", async (e) => {
     setLoading(pwBtn, false);
   }
 });
+
+
+/* ----------------------------------------------------------- invite friends --- */
+// Shown inside the installed app and on laptops / desktops. Hidden in a phone's browser.
+(function invite() {
+  const menuItem = document.getElementById("inviteLink");
+  const ua = navigator.userAgent;
+  const phone = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+  let installed = false;
+  try {
+    installed = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+      /; wv\)/.test(ua) || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+  } catch {}
+  if (phone && !installed) { menuItem.hidden = true; return; }
+  menuItem.hidden = false;
+
+  const $i = (id) => document.getElementById(id);
+  const first = () => String((profile && profile.name) || "").trim().split(/\s+/)[0] || "A friend";
+  function inviteUrl() {
+    const u = new URL("invite.html", location.href);
+    u.search = ""; u.hash = "";
+    u.searchParams.set("n", first());
+    if (myId) u.searchParams.set("ref", myId);
+    return u.toString();
+  }
+  const message = () => first() + " invited you to InfiniX - chat without limits. Join here:";
+  function fill() {
+    const url = inviteUrl(), text = message();
+    $i("inviteUrl").value = url;
+    $i("inviteWa").href = "https://wa.me/?text=" + encodeURIComponent(text + " " + url);
+    $i("inviteTg").href = "https://t.me/share/url?url=" + encodeURIComponent(url) + "&text=" + encodeURIComponent(text);
+    $i("inviteMail").href = "mailto:?subject=" + encodeURIComponent("Join me on InfiniX") + "&body=" + encodeURIComponent(text + "\n" + url);
+    $i("inviteShare").textContent = navigator.share ? "Share invite" : "Copy invite link";
+  }
+  fill();
+  window.addEventListener("hashchange", () => { if (location.hash === "#invite") fill(); });
+
+  async function copy() {
+    const url = inviteUrl(), msg = $i("inviteMsg");
+    try { await navigator.clipboard.writeText(message() + " " + url); msg.textContent = "Invite copied. Paste it in any chat."; }
+    catch { const f = $i("inviteUrl"); f.select(); try { document.execCommand("copy"); msg.textContent = "Link copied."; } catch { msg.textContent = "Press and hold the link to copy it."; } }
+  }
+  $i("inviteCopy").addEventListener("click", copy);
+  $i("inviteShare").addEventListener("click", async () => {
+    if (!navigator.share) return copy();
+    try { await navigator.share({ title: "Join me on InfiniX", text: message(), url: inviteUrl() }); }
+    catch (e) { if (!e || e.name !== "AbortError") copy(); }   // closing the sheet is not an error
+  });
+})();
