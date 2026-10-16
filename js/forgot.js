@@ -1,13 +1,11 @@
 // =============================================================================
 // forgot.js - "Forgot password": saves a request in Firestore (passwordRequests)
-// for the admin to approve, and opens WhatsApp with a ready message (Tanglish).
+// for the admin to approve, and opens WhatsApp with a ready message (English).
 // =============================================================================
 
-import { db } from "./firebase-config.js";
-import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { normalizeId } from "./handle.js";
 import { setFieldError, setLoading, setMessage } from "./utils.js";
-import { ADMIN_WHATSAPP } from "./reset-config.js";
+import { ADMIN_WHATSAPP, REQUEST_API_URL } from "./reset-config.js";
 
 const form = document.getElementById("forgotForm");
 const input = document.getElementById("ident");
@@ -26,11 +24,20 @@ form.addEventListener("submit", async (e) => {
 
   setLoading(btn, true, "Sending...");
   try {
-    const ref = await addDoc(collection(db, "passwordRequests"), {
-      identifier: ident,
-      status: "pending",
-      createdAt: serverTimestamp(),
-    });
+    // The server checks that the account exists, then saves the request for the admin.
+    let res, data = {};
+    try {
+      res = await fetch(REQUEST_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: ident }),
+      });
+      data = await res.json().catch(() => ({}));
+    } catch (netErr) {
+      throw new Error("Network error. Check your connection and try again.");
+    }
+    if (!res.ok || !data.requestId) throw new Error(data.error || "Could not send the request. Please try again.");
+    const ref = { id: data.requestId };
     try { localStorage.setItem("ix_reset_req", ref.id); } catch {}
 
     const code = ref.id.slice(0, 6).toUpperCase();
@@ -43,7 +50,7 @@ form.addEventListener("submit", async (e) => {
     window.open(url, "_blank", "noopener"); // if the browser blocks it, the button above still works
   } catch (ex) {
     console.error(ex);
-    setMessage(err, "Could not send the request. Check your connection and try again.");
+    setMessage(err, ex && ex.message ? ex.message : "Could not send the request. Check your connection and try again.");
   } finally {
     setLoading(btn, false);
   }
