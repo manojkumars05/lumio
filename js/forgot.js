@@ -35,7 +35,7 @@ form.addEventListener("submit", async (e) => {
 
     const code = ref.id.slice(0, 6).toUpperCase();
     document.getElementById("code").textContent = code;
-    const text = `Vanakkam Admin, naan InfiniX-la password reset request pannirukken.\nUsername/ID/Email: ${ident}\nRequest code: ${code}\nApprove pannunga please. Nandri!`;
+    const text = `Hello Admin, I have requested a password reset on InfiniX.\nUsername/ID/Email: ${ident}\nRequest code: ${code}\nPlease approve my request. Thank you!`;
     const url = `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(text)}`;
     document.getElementById("waBtn").href = url;
     document.getElementById("sent").hidden = false;
