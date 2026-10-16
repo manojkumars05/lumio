@@ -59,6 +59,21 @@
         </button>
       </div>
     </section>
+    <!-- Decide Invite / Download visibility instantly (no flicker on refresh or when coming back to this page). -->
+    <script>
+    (function () {
+      var ua = navigator.userAgent;
+      var phone = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+      var installed = false;
+      try {
+        installed = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+          /; wv\)/.test(ua) || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+      } catch (e) {}
+      var inv = document.getElementById("inviteLink"), dl = document.getElementById("dlLink");
+      if (inv) inv.hidden = phone && !installed;
+      if (dl) dl.hidden = installed;
+    })();
+    </script>
 
     <!-- ===== Profile ===== -->
     <section data-view="profile" hidden>
