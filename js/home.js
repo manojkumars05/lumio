@@ -53,6 +53,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { follow, getFollowing, cachedFollowing } from "./follow.js";
 import { applyPhoto } from "./avatars.js";
+import { isGoneEntry, checkGone } from "./gone.js";
 
 const uid = user.uid;
 const $ = (id) => document.getElementById(id);
@@ -84,11 +85,14 @@ function renderFriends() {
   // People you chat with + people you follow (no duplicates).
   const seen = new Set(), list = [];
   [...contacts(), ...cachedFollowing(uid)].forEach((c) => { if (c.uid && !seen.has(c.uid)) { seen.add(c.uid); list.push(c); } });
-  list.splice(15);
+  const all = list.slice();
+  const visible = list.filter((c) => !isGoneEntry(c));
+  checkGone(all).then((changed) => { if (changed) renderFriends(); });   // deleted accounts drop out
+  visible.splice(15);
   const row = $("friendsRow");
   row.replaceChildren();
-  $("friendsEmpty").hidden = list.length > 0;
-  list.forEach((c) => {
+  $("friendsEmpty").hidden = visible.length > 0;
+  visible.forEach((c) => {
     const a = el("a", "ix-friend");
     a.href = "chat.html?open=" + encodeURIComponent(c.uid);
     a.append(avatar(c.name, c.photo, c), el("span", "nm", String(c.name || "User").split(/\s+/)[0]));

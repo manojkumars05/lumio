@@ -7,6 +7,7 @@
 import { requireAuth } from "./auth.js";
 import { applyPhoto } from "./avatars.js";
 import { follow, unfollow, getFollowers, getFollowing, getCounts, cachedCounts, cachedFollowing } from "./follow.js";
+import { isGoneEntry, checkGone } from "./gone.js";
 
 const user = await requireAuth();
 const uid = user.uid;
@@ -74,6 +75,9 @@ function paintCounts(c) {
 }
 
 function render(items, withFollow, key) {
+  const all = items;
+  items = items.filter((x) => !isGoneEntry(x));            // deleted accounts are not shown
+  checkGone(all).then((changed) => { if (changed) render(all, withFollow, key); });
   box.replaceChildren();
   empty.hidden = items.length > 0;
   empty.textContent = EMPTY[key];
