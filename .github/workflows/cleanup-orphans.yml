@@ -1,0 +1,22 @@
+name: Cleanup deleted accounts
+
+on:
+  schedule:
+    - cron: "30 21 * * *"     # every day at 03:00 India time
+  workflow_dispatch:           # you can also run it by hand from the Actions tab
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install Firebase Admin SDK
+        run: npm install --no-save firebase-admin@12
+      - name: Remove profiles of deleted logins
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          DRY_RUN: "true"          # change to "false" after you checked the log once
+        run: node scripts/cleanup-orphans.mjs
