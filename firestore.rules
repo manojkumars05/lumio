@@ -82,6 +82,15 @@ service cloud.firestore {
 
     // ---- users: each person can only see and edit their own profile -------
     match /users/{userId} {
+      // Chats I deleted "for me": one doc per friend (cutoff time). Only the owner can see or write.
+      match /cleared/{peerUid} {
+        allow read: if signedIn() && request.auth.uid == userId;
+        allow create, update: if signedIn() && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly(['at'])
+          && request.resource.data.at == request.time;
+        allow delete: if false;
+      }
+
       allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
 
       allow create: if signedIn()

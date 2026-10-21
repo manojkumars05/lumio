@@ -375,11 +375,11 @@ let clearedReady = false;
 function ensureCleared() {
   if (clearedReady || !me) return;
   clearedReady = true;
-  getDocs(query(collection(db, "cleared"), where(documentId(), ">=", me.uid + "_"), where(documentId(), "<", me.uid + "`")))
+  getDocs(collection(db, "users", me.uid, "cleared"))
     .then((snap) => {
       snap.forEach((d) => {
         const t = d.data().at;
-        clearedMap[d.id.slice(me.uid.length + 1)] = t && t.toMillis ? t.toMillis() : Date.now();
+        clearedMap[d.id] = t && t.toMillis ? t.toMillis() : Date.now();
       });
       renderContacts();
       if (activeUid) renderMsgs(true);
@@ -393,7 +393,7 @@ async function deleteChat(c) {
   if (activeUid === c.uid) renderMsgs(true);
   renderContacts();
   try {
-    await setDoc(doc(db, "cleared", me.uid + "_" + c.uid), { at: serverTimestamp() });
+    await setDoc(doc(db, "users", me.uid, "cleared", c.uid), { at: serverTimestamp() });
     toast("Chat deleted for you.");
   } catch (e) {
     console.error(e);
@@ -1014,3 +1014,14 @@ function closeChat() {
 }
 $("back").addEventListener("click", () => { if (history.state && history.state.chat) history.back(); else closeChat(); });
 window.addEventListener("popstate", () => { if (activeUid) closeChat(); });
+
+/* ---- long press must not select text in the message list or the chat list ---- */
+(function () {
+  const st = document.createElement("style");
+  st.textContent = "#msgs, #msgs *, #users, #users *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}";
+  document.head.appendChild(st);
+  document.addEventListener("selectstart", (e) => {
+    const t = e.target;
+    if (t && t.closest && t.closest("#msgs, #users")) e.preventDefault();
+  });
+})();
