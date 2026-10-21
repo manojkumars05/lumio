@@ -256,7 +256,7 @@ export function renderUserChip(user, profile) {
   document.querySelectorAll("[data-user-email]").forEach((el) => (el.textContent = user.email || ""));
   let photo = profile?.photo || "";
   if (!photo) { try { photo = JSON.parse(localStorage.getItem("lumio_user") || "{}").photo || ""; } catch {} }
-  const hasPhoto = typeof photo === "string" && photo.startsWith("data:image/");
+  const hasPhoto = typeof photo === "string" && /^(data:image\/|https:\/\/res\.cloudinary\.com\/)/.test(photo);
   document.querySelectorAll("[data-user-avatar]").forEach((el) => {
     el.textContent = hasPhoto ? "" : initials;
     el.classList.toggle("has-photo", hasPhoto);

@@ -8,6 +8,7 @@ import { auth, db } from "./firebase-config.js";
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { RESET_API_URL } from "./reset-config.js";
+import { saveDevice } from "./device.js";
 import { friendlyAuthError, redirectIfLoggedIn, showConfigWarning } from "./auth.js";
 import { setFieldError, setLoading, setMessage } from "./utils.js";
 
@@ -56,6 +57,7 @@ form.addEventListener("submit", async (event) => {
   setLoading(submitBtn, true, "Logging in...");
   try {
     const cred = await signInWithEmailAndPassword(auth, email, password);
+    saveDevice(cred.user.uid);
     // Blocked by the admin? Then sign out again.
     try {
       const snap = await getDoc(doc(db, "users", cred.user.uid));

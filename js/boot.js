@@ -102,7 +102,7 @@
     each("[data-user-first-name]", function (el) { el.textContent = u.name.split(/\s+/)[0]; });
     each("[data-user-email]", function (el) { el.textContent = u.email || ""; });
     each("[data-user-avatar]", function (el) {
-      if (cached.photo && String(cached.photo).indexOf("data:image/") === 0) {
+      if (cached.photo && /^(data:image\/|https:\/\/res\.cloudinary\.com\/)/.test(String(cached.photo))) {
         el.textContent = ""; el.className += " has-photo"; el.style.backgroundImage = "url(" + cached.photo + ")";
       } else el.textContent = initials;
     });

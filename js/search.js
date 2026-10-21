@@ -43,7 +43,7 @@ function showPerson(p) {
         <button class="btn btn-ghost btn-sm" type="button" id="msgBtn">Message</button>
       </div>
     </article>`;
-  if (p.photo && String(p.photo).startsWith("data:image/")) document.getElementById("resAv").style.backgroundImage = "url(" + p.photo + ")";
+  if (p.photo && /^(data:image\/|https:\/\/res\.cloudinary\.com\/)/.test(String(p.photo))) document.getElementById("resAv").style.backgroundImage = "url(" + p.photo + ")";
   // Follow / Following: one small read to know the current state.
   const fb = document.getElementById("followBtn");
   let following = false;

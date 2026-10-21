@@ -1,3 +1,4 @@
+import { serverTimestamp as srvTs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 // =============================================================================
 // home.js - home page: greeting + birthday banner (no Firebase reads beyond the
 // profile that every page already loads once).
@@ -63,7 +64,7 @@ function avatar(name, photo, p) {
   const a = document.createElement("span");
   a.className = "avatar";
   a.setAttribute("aria-hidden", "true");
-  if (typeof photo === "string" && photo.startsWith("data:image/")) {
+  if (typeof photo === "string" && /^(data:image\/|https:\/\/res\.cloudinary\.com\/)/.test(photo)) {
     a.classList.add("has-photo");
     a.style.backgroundImage = "url(" + photo + ")";
   } else a.textContent = initialsOf(name);
@@ -95,80 +96,18 @@ function renderFriends() {
   });
 }
 
-/* ------------------------------------------------ people you may know --- */
-const SUG_KEY = "ix_suggest_" + uid;
-const SUG_TTL = 6 * 3600 * 1000;
-
-async function fetchSuggestions() {
-  const col = collection(db, "directory");
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let rand = "";
-  for (let i = 0; i < 28; i++) rand += chars[Math.floor(Math.random() * chars.length)];
-  const out = new Map();
-  const add = (snap) => snap.forEach((d) => {
-    const x = d.data();
-    if (d.id !== uid && x.name && x.userId) out.set(d.id, { uid: d.id, name: x.name, id: x.userId, username: x.username || "" });
-  });
-  add(await getDocs(query(col, orderBy(documentId()), startAt(rand), limit(20))));
-  if (out.size < 12) add(await getDocs(query(col, orderBy(documentId()), limit(20))));   // wrap around
-  return [...out.values()];
-}
-
-function messageUser(p) {
-  const list = contacts();
-  if (!list.some((c) => c.uid === p.uid)) {
-    list.unshift({ uid: p.uid, name: p.name, id: p.id, photo: "", at: Date.now() });
-    lsSet("lumio_contacts_" + uid, list);
-  }
-  location.href = "chat.html?open=" + encodeURIComponent(p.uid);
-}
-
-function renderSuggestions(items) {
-  const known = new Set([...contacts(), ...cachedFollowing(uid)].map((c) => c.uid));
-  const show = (items || []).filter((p) => p.uid !== uid && !known.has(p.uid)).slice(0, 6);
-  const box = $("sugList");
-  box.replaceChildren();
-  $("sugEmpty").hidden = show.length > 0;
-  show.forEach((p) => {
-    const row = el("article", "ix-person");
-    const text = el("div", "ix-person-text");
-    text.append(el("strong", "", p.name), el("small", "", p.id + (p.username ? " \u00b7 @" + p.username : "")));
-    const btn = el("button", "btn btn-ghost btn-sm", "Message");
-    btn.type = "button";
-    btn.addEventListener("click", () => messageUser(p));
-    const fb = el("button", "btn btn-primary btn-sm", "Follow");
-    fb.type = "button";
-    fb.addEventListener("click", async () => {
-      fb.disabled = true;
-      try { await follow(uid, p); fb.textContent = "Following"; fb.className = "btn btn-ghost btn-sm"; renderFriends(); }
-      catch (e) { console.warn(e); fb.disabled = false; }
-    });
-    const actions = el("div", "ix-actions");
-    actions.append(fb, btn);
-    const av = avatar(p.name, "", p); av.classList.add("avatar-lg");
-    row.append(av, text, actions);
-    box.append(row);
-  });
-}
-
-async function loadSuggestions() {
-  const c = lsGet(SUG_KEY, null);
-  if (c && Array.isArray(c.items)) renderSuggestions(c.items);            // instant, from this device
-  if (c && Date.now() - c.at < SUG_TTL) return;                          // fresh enough: 0 reads
-  try {
-    const items = await fetchSuggestions();
-    lsSet(SUG_KEY, { at: Date.now(), items });
-    renderSuggestions(items);
-  } catch (e) { console.warn("Suggestions unavailable:", e); }
-}
-
 // Publish my own card so other people can see me in their suggestions (only when it changed).
 async function syncDirectory() {
   if (!profile.userId || !profile.name) return;
-  const sig = [profile.name, profile.userId, profile.username || ""].join("|");
-  if (lsGet("ix_dir_" + uid, "") === sig) return;
+  const photo = /^https:\/\/res\.cloudinary\.com\//.test(profile.photo || "") ? profile.photo : "";
+  const sig = [profile.name, profile.userId, profile.username || "", photo].join("|");
+  const prev = lsGet("ix_dir_" + uid, "");
+  if (prev === sig) return;
+  const prevPhoto = String(prev).split("|")[3] || "";
+  const data = { name: profile.name, userId: profile.userId, username: profile.username || "", photo };
+  if (photo !== prevPhoto) data.photoAt = srvTs();      // the photo changed: friends' screens will pick it up
   try {
-    await setDoc(doc(db, "directory", uid), { name: profile.name, userId: profile.userId, username: profile.username || "" });
+    await setDoc(doc(db, "directory", uid), data, { merge: true });
     lsSet("ix_dir_" + uid, sig);
   } catch (e) { console.warn("Could not update the directory:", e); }
 }
@@ -279,5 +218,4 @@ getFollowing(uid, false, 30 * 60 * 1000).then(renderFriends);   // refreshed at 
 paintBadge();
 loadFollowNotices(false);
 window.addEventListener("ix:followers", () => loadFollowNotices(true));   // new follower: refresh the bell once
-loadSuggestions();
 syncDirectory();

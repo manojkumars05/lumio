@@ -11,11 +11,12 @@ import { auth, db } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   collection, addDoc, setDoc, updateDoc, arrayUnion, deleteField, doc, getDoc, getDocs, increment,
-  query, orderBy, limit, startAfter, where, onSnapshot, serverTimestamp, writeBatch,
+  query, orderBy, limit, startAfter, where, onSnapshot, serverTimestamp, writeBatch, documentId,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { cacheUser, ensureUsername, getProfileCached, logout } from "./auth.js";
 import { ensureUserId, findByUserId, normalizeId } from "./handle.js";
-import { imageToDataUrl, makeThumb } from "./photo.js";
+import { imageToDataUrl } from "./photo.js";
+import { uploadImage, thumbUrl, isImgSrc, dataUrlToBlob } from "./cloudinary.js";
 import { applyPhoto } from "./avatars.js";
 
 const $ = (id) => document.getElementById(id);
@@ -41,7 +42,7 @@ let cursorDoc = null, hasMore = false, loadingOlder = false, olderLoaded = false
 const storeKey = () => "lumio_contacts_" + me.uid;
 const chatIdFor = (other) => [me.uid, other].sort().join("_");
 const contactOf = (uid) => contacts.find((c) => c.uid === uid);
-const isImg = (v) => typeof v === "string" && v.startsWith("data:image/");
+const isImg = isImgSrc;   // Cloudinary link, or an old data-URL
 function lsGet(key, fallback) { try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch { return fallback; } }
 function lsSet(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
 function saveContacts() { lsSet(storeKey(), contacts); }
@@ -368,7 +369,104 @@ $("findForm").addEventListener("submit", async (e) => {
   }
 });
 
+// ---- delete a whole chat "for me": a cutoff time per friend, stored in cleared/{myUid}_{friendUid} ----
+const clearedMap = {};            // friend uid -> ms; messages older than this are hidden for me
+let clearedReady = false;
+function ensureCleared() {
+  if (clearedReady || !me) return;
+  clearedReady = true;
+  getDocs(query(collection(db, "cleared"), where(documentId(), ">=", me.uid + "_"), where(documentId(), "<", me.uid + "`")))
+    .then((snap) => {
+      snap.forEach((d) => {
+        const t = d.data().at;
+        clearedMap[d.id.slice(me.uid.length + 1)] = t && t.toMillis ? t.toMillis() : Date.now();
+      });
+      renderContacts();
+      if (activeUid) renderMsgs(true);
+    })
+    .catch((e) => console.warn("Could not load deleted chats:", e));
+}
+async function deleteChat(c) {
+  if (!confirm(`Delete all messages with ${c.name || "this user"} for you? Only your copy is removed. New messages will still show up.`)) return;
+  const prev = clearedMap[c.uid];
+  clearedMap[c.uid] = Date.now();
+  if (activeUid === c.uid) renderMsgs(true);
+  renderContacts();
+  try {
+    await setDoc(doc(db, "cleared", me.uid + "_" + c.uid), { at: serverTimestamp() });
+    toast("Chat deleted for you.");
+  } catch (e) {
+    console.error(e);
+    if (prev) clearedMap[c.uid] = prev; else delete clearedMap[c.uid];
+    if (activeUid === c.uid) renderMsgs(true);
+    renderContacts();
+    toast("Could not delete the chat. Check your internet.");
+  }
+}
+function openChatMenu(c, x, y) {
+  closeMenu();
+  const menu = document.createElement("div");
+  menu.className = "menu";
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "danger"; b.textContent = "🗑 Delete chat";
+  b.addEventListener("click", (e) => { e.stopPropagation(); closeMenu(); deleteChat(c); });
+  menu.appendChild(b);
+  document.body.appendChild(menu);
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  menu.style.left = Math.max(8, Math.min(x, window.innerWidth - mw - 8)) + "px";
+  menu.style.top = Math.max(8, Math.min(y, window.innerHeight - mh - 8)) + "px";
+}
+// Long-press (touch or mouse) on a chat row opens "Delete chat". A long press does not open the chat.
+function attachRowPress(row, c) {
+  let timer = 0, fired = false, sx = 0, sy = 0;
+  const start = (x, y) => {
+    fired = false; sx = x; sy = y;
+    clearTimeout(timer);
+    timer = setTimeout(() => { timer = 0; fired = true; try { navigator.vibrate && navigator.vibrate(15); } catch {} openChatMenu(c, sx, sy); }, 450);
+  };
+  const stop = () => { clearTimeout(timer); timer = 0; };
+  row.addEventListener("touchstart", (e) => start(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  row.addEventListener("touchmove", stop, { passive: true });
+  row.addEventListener("touchend", stop);
+  row.addEventListener("mousedown", (e) => { if (e.button === 0) start(e.clientX, e.clientY); });
+  row.addEventListener("mouseup", stop);
+  row.addEventListener("mouseleave", stop);
+  row.addEventListener("contextmenu", (e) => { e.preventDefault(); stop(); openChatMenu(c, e.clientX, e.clientY); });
+  row.addEventListener("click", (e) => { if (fired) { fired = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+}
+
+// Once per visit (then every 6 hours per friend): refresh names, and mark a friend "Unknown user"
+// when their profile is gone (account deleted). Their old messages stay visible.
+let peersChecked = false;
+async function ensurePeers() {
+  if (peersChecked || !me || !contacts.length) return;
+  peersChecked = true;
+  const now = Date.now();
+  let changed = false;
+  for (const c of contacts) {
+    const key = "lumio_peer_" + c.uid;
+    if (now - (Number(localStorage.getItem(key)) || 0) < 6 * 3600 * 1000) continue;
+    try {
+      const s = await getDoc(doc(db, "directory", c.uid));
+      if (s.exists()) {
+        const x = s.data();
+        if (x.name && x.name !== c.name) { c.name = x.name; changed = true; }
+        if (x.userId && x.userId !== c.id) { c.id = x.userId; changed = true; }
+      } else if (c.id && c.name !== "Unknown user") {
+        c.name = "Unknown user"; c.id = ""; changed = true;
+      }
+      localStorage.setItem(key, String(now));
+    } catch (e) { /* offline: try again next visit */ }
+  }
+  if (changed) {
+    try { localStorage.setItem("lumio_contacts_" + me.uid, JSON.stringify(contacts)); } catch {}
+    renderContacts();
+  }
+}
+
 function renderContacts() {
+  ensureCleared();
+  ensurePeers();
   const box = $("users");
   box.innerHTML = "";
   const totalUnread = contacts.reduce((n, c) => n + ((meta[c.uid] && meta[c.uid].unread) || 0), 0);
@@ -383,6 +481,8 @@ function renderContacts() {
     return;
   }
   let list = contacts.filter((c) => !filterText || (c.name || "").toLowerCase().includes(filterText) || (c.id || "").toLowerCase().includes(filterText));
+  // Hide a chat whose messages were deleted, until a newer message arrives.
+  list = list.filter((c) => { const cut = clearedMap[c.uid] || 0; const ms = (meta[c.uid] && meta[c.uid].ms) || 0; return !cut || !ms || ms > cut; });
   if (unreadOnly) list = list.filter((c) => ((meta[c.uid] && meta[c.uid].unread) || 0) > 0);
   if (!list.length) {
     const p = document.createElement("p");
@@ -393,7 +493,7 @@ function renderContacts() {
     return;
   }
   list.sort((a, b) => (((meta[b.uid] && meta[b.uid].ms) || 0) - ((meta[a.uid] && meta[a.uid].ms) || 0)) || (a.name || "").localeCompare(b.name || "") || (a.uid < b.uid ? -1 : 1));
-  list.forEach((c) => box.appendChild(contactRow(c, () => openChat(c.uid), true)));
+  list.forEach((c) => { const row = contactRow(c, () => openChat(c.uid), true); attachRowPress(row, c); box.appendChild(row); });
   updateTitle();
 }
 
@@ -438,7 +538,7 @@ function mapDoc(d, hiddenSet) {
     hidden: (m.hiddenFor || []).includes(me.uid) || hiddenSet.has(d.id),
     ms: m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0,
     pending: d.metadata.hasPendingWrites,
-    photoId: m.photoId || "", thumb: isImg(m.thumb) ? m.thumb : "", imageBytes: m.imageBytes || 0,
+    photoId: m.photoId || "", photoUrl: isImg(m.photoUrl) ? m.photoUrl : "", thumb: isImg(m.thumb) ? m.thumb : "", imageBytes: m.imageBytes || 0,
     hasImage: m.hasImage === true, imageExpired: m.imageExpired === true,
   };
 }
@@ -521,7 +621,8 @@ function renderMsgs(forceScroll, keepScroll) {
   const theirSeen = (activeUid && meta[activeUid] && meta[activeUid].theirSeenMs) || 0;
   const peerName = (contactOf(activeUid) || {}).name || "User";
   list.innerHTML = "";
-  const shown = lastMsgs.filter((m) => !m.hidden);
+  const cut = (activeUid && clearedMap[activeUid]) || 0;
+  const shown = lastMsgs.filter((m) => !m.hidden && (m.pending || !cut || m.ms > cut));
   if (!shown.length && !hasMore) list.innerHTML = '<p class="empty">No messages yet. Say hi!</p>';
   if (hasMore) {
     const more = document.createElement("button");
@@ -562,6 +663,7 @@ function renderMsgs(forceScroll, keepScroll) {
           const img = document.createElement("img");
           img.className = "pic"; img.src = m.thumb; img.alt = "Photo"; img.loading = "lazy"; img.decoding = "async";
           img.addEventListener("click", () => openLightbox(m));
+          img.addEventListener("error", () => { if (m.photoUrl && img.src !== m.photoUrl) img.src = m.photoUrl; }, { once: true });
           el.appendChild(img);
         }
       }
@@ -666,8 +768,8 @@ async function deleteMessage(m) {
     if (m.photoId && m.hasImage) {
       // The photo goes too, and the admin's photo counter goes down by one.
       const b = writeBatch(db);
-      b.update(mref, { deleted: true, text: "", thumb: deleteField(), photoId: deleteField(), hasImage: false, imageBytes: deleteField() });
-      b.delete(doc(db, "chats", cid, "photos", m.photoId));
+      b.update(mref, { deleted: true, text: "", thumb: deleteField(), photoId: deleteField(), photoUrl: deleteField(), hasImage: false, imageBytes: deleteField() });
+      if (!m.photoUrl) b.delete(doc(db, "chats", cid, "photos", m.photoId));   // old photos only
       b.set(doc(db, "stats", "photos"), { count: increment(-1), bytes: increment(-(m.imageBytes || 0)) }, { merge: true });
       await b.commit();
     } else {
@@ -686,8 +788,8 @@ async function purgeExpired() {
     purging.add(m.id);
     try {
       const b = writeBatch(db);
-      b.update(doc(db, "chats", cid, "messages", m.id), { thumb: deleteField(), photoId: deleteField(), hasImage: false, imageExpired: true });
-      b.delete(doc(db, "chats", cid, "photos", m.photoId));
+      b.update(doc(db, "chats", cid, "messages", m.id), { thumb: deleteField(), photoId: deleteField(), photoUrl: deleteField(), hasImage: false, imageExpired: true });
+      if (!m.photoUrl) b.delete(doc(db, "chats", cid, "photos", m.photoId));   // old photos only
       b.set(doc(db, "stats", "photos"), { count: increment(-1), bytes: increment(-(m.imageBytes || 0)) }, { merge: true });
       await b.commit();
     } catch (e) {
@@ -732,7 +834,7 @@ document.querySelectorAll("[data-reason]").forEach((b) => b.addEventListener("cl
   try {
     await setDoc(doc(db, "reports", m.id + "_" + me.uid), {
       reporterId: me.uid, reportedId: m.senderId, chatId: cid, msgId: m.id,
-      photoId: m.photoId || "", text: (m.text || "").slice(0, 1000), thumb: m.thumb || "",
+      photoId: m.photoId || "", photoUrl: m.photoUrl || "", text: (m.text || "").slice(0, 1000), thumb: m.thumb || "",
       reason, status: "open", createdAt: serverTimestamp(),
     });
     toast("Thanks. The message was reported to the admin.");
@@ -765,22 +867,22 @@ async function sendTo(otherUid, p) {
   await addDoc(collection(db, "chats", cid, "messages"), data);
 }
 
-const fullCache = new Map();                 // photoId -> full data URL (this visit only)
+const fullCache = new Map();                 // photoId -> full data URL (OLD photos, this visit only)
+// The picture itself goes to Cloudinary; Firestore only keeps its link (photoUrl) and a small link (thumb).
 async function sendPhoto(otherUid, photo, rp) {
   const cid = chatIdFor(otherUid);
+  if (photo.blob.size > MAX_PHOTO_BYTES) throw new Error("Photos can be 1 MB at most.");
+  const up = await uploadImage(photo.blob, "chat");
   await writeHeader(otherUid, "📷 Photo");
-  const photoRef = doc(collection(db, "chats", cid, "photos"));
   const msgRef = doc(collection(db, "chats", cid, "messages"));
   const msg = {
     text: "", senderId: me.uid, createdAt: serverTimestamp(),
-    photoId: photoRef.id, thumb: photo.thumb, hasImage: true, imageBytes: photo.bytes,
+    photoId: msgRef.id, photoUrl: up.url, thumb: thumbUrl(up.url), hasImage: true, imageBytes: photo.blob.size,
   };
   if (rp) msg.replyTo = rp;
   const b = writeBatch(db);
-  b.set(photoRef, { data: photo.full, senderId: me.uid, createdAt: serverTimestamp(), bytes: photo.bytes });
   b.set(msgRef, msg);
-  b.set(doc(db, "stats", "photos"), { count: increment(1), bytes: increment(photo.bytes) }, { merge: true });
-  fullCache.set(photoRef.id, photo.full);
+  b.set(doc(db, "stats", "photos"), { count: increment(1), bytes: increment(msg.imageBytes) }, { merge: true });
   await b.commit();
 }
 
@@ -802,7 +904,9 @@ $("text").addEventListener("input", () => {
 });
 
 /* ------------------------------------------------------------------ photos --- */
-let pending = null;                          // { full, thumb, bytes, target }
+let pending = null;                          // { full (preview), blob (uploaded), bytes, target }
+const MAX_PHOTO_BYTES = 1000 * 1000;         // one photo is 1 MB at most
+const looksLikeImage = (f) => String(f.type).startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|avif|heic|heif|tiff?)$/i.test(f.name || "");
 $("camBtn").addEventListener("click", () => { $("photoSheet").hidden = false; });
 $("photoCancel").addEventListener("click", () => { $("photoSheet").hidden = true; });
 $("photoSheet").addEventListener("click", (e) => { if (e.target.id === "photoSheet") $("photoSheet").hidden = true; });
@@ -822,12 +926,26 @@ async function preparePhoto(file) {
   $("previewImg").hidden = true;
   $("previewSend").disabled = true;
   try {
-    // Shrink before sending: long side 1280px, JPEG; small thumbnail for the chat.
-    const full = await imageToDataUrl(file, { max: 1280, quality: 0.72, maxChars: 480000 });
-    const thumb = await makeThumb(file, { width: 300, maxHeight: 380, quality: 0.62, maxChars: 36000 });
-    pending = { full, thumb, bytes: full.length, target };
-    $("previewImg").src = full;
-    $("previewImg").hidden = false;
+    // Any picture type (jpg, png screenshots, webp, gif, heic...). A photo up to 1 MB is sent exactly
+    // as it is (no re-drawing, so screenshots can't turn white). A bigger one is shrunk to under 1 MB.
+    if (!looksLikeImage(file)) throw new Error("Please choose a photo.");
+    let blob = file, preview = "";
+    if (file.size <= MAX_PHOTO_BYTES) {
+      preview = URL.createObjectURL(file);
+    } else {
+      blob = null;
+      for (const max of [1600, 1280, 1000, 800, 600]) {
+        const out = await imageToDataUrl(file, { max, quality: 0.8, maxChars: 1300000 });
+        const b = await dataUrlToBlob(out);
+        if (b.size <= MAX_PHOTO_BYTES) { blob = b; preview = out; break; }
+      }
+      if (!blob) throw new Error("This photo is too big. Photos can be 1 MB at most.");
+    }
+    pending = { full: preview, blob, bytes: blob.size, target };
+    const pv = $("previewImg");
+    pv.onerror = () => { pv.hidden = true; toast("No preview for this picture, but it can still be sent."); };
+    pv.src = preview;
+    pv.hidden = false;
     $("previewSend").disabled = false;
   } catch (err) {
     console.error(err);
@@ -835,15 +953,16 @@ async function preparePhoto(file) {
     toast(err && err.message ? err.message : "Could not read that photo.");
   } finally { $("previewBusy").hidden = true; }
 }
-function closePreview() { pending = null; $("previewModal").hidden = true; $("previewImg").removeAttribute("src"); }
+function closePreview() { if (pending && String(pending.full).startsWith("blob:")) URL.revokeObjectURL(pending.full); pending = null; $("previewModal").hidden = true; $("previewImg").removeAttribute("src"); }
 $("previewRemove").addEventListener("click", closePreview);
 $("previewSend").addEventListener("click", async () => {
   const p = pending;
   if (!p) return;
   const rp = replyTo;
   closePreview(); clearReply();
+  toast("Sending photo...");
   try { await sendPhoto(p.target, p, rp); }
-  catch (err) { console.error(err); toast("Photo not sent. You may be blocked or offline."); }
+  catch (err) { console.error(err); toast(/Cloudinary|1 MB|upload/i.test(String(err && err.message)) ? err.message : "Photo not sent. Check your internet, or you may be blocked."); }
 });
 
 // Full photo: thumbnail first, the full picture is fetched once (1 read) when tapped.
@@ -851,6 +970,7 @@ async function openLightbox(m) {
   const lb = $("lightbox"), img = $("lightImg"), note = $("lightNote");
   img.src = m.thumb; note.textContent = ""; note.hidden = true;
   lb.hidden = false;
+  if (m.photoUrl) { img.src = m.photoUrl; return; }   // full picture straight from Cloudinary (no Firestore read)
   if (!m.photoId) return;
   let full = fullCache.get(m.photoId);
   if (!full) {

@@ -103,8 +103,23 @@
     </section>
   </main>
 
+  <div id="userSheet" class="ix-sheet" hidden>
+    <div class="ix-sheet-card" role="dialog" aria-modal="true" aria-labelledby="usName">
+      <button class="btn btn-ghost btn-sm" type="button" id="usBack">&larr; Back</button>
+      <div class="ix-us-head">
+        <button type="button" class="ix-us-photo" id="usPhoto" aria-label="View profile photo"></button>
+        <h2 id="usName"></h2>
+        <span id="usStatus" class="ix-pill blocked" hidden>blocked</span>
+      </div>
+      <dl class="ix-us-list" id="usList"></dl>
+      <div id="usMsg" class="alert" hidden></div>
+      <button class="btn btn-block" type="button" id="usBlock" hidden></button>
+    </div>
+  </div>
+
   <script src="js/boot.js"></script>
   <script type="module" src="js/admin.js"></script>
   <script type="module" src="js/sidebar.js"></script>
+  <script src="js/ptr.js"></script>
 </body>
 </html>

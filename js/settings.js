@@ -12,11 +12,13 @@ import {
   reauthenticateWithCredential,
   updatePassword,
   updateProfile,
+  deleteUser,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { setFieldError, setLoading } from "./utils.js";
 import { ensureUserId, updateHandleName } from "./handle.js";
 import { imageToDataUrl } from "./photo.js";
+import { uploadImage } from "./cloudinary.js";
 import { cacheUser } from "./auth.js";
 
 /* ------------------------------------------------------------- views --- */
@@ -99,8 +101,9 @@ photoFile.addEventListener("change", async () => {
   photoMsg.style.color = "";
   photoMsg.textContent = "Saving photo...";
   try {
-    // Small square JPEG (256 px) so it stays light on every page and in Firestore.
-    const photo = await imageToDataUrl(file, { max: 256, quality: 0.8, maxChars: 38000, square: true });
+    // Small square JPEG (256 px) -> Cloudinary. Only the link is saved in Firestore.
+    const small = await imageToDataUrl(file, { max: 256, quality: 0.85, maxChars: 400000, square: true });
+    const photo = (await uploadImage(small, "profile")).url;
     const batch = writeBatch(db);
     batch.update(doc(db, "users", user.uid), { photo });
     if (myId) batch.update(doc(db, "handles", myId), { photo });
@@ -109,10 +112,11 @@ photoFile.addEventListener("change", async () => {
     cacheUser({ uid: user.uid, photo });
     renderUserChip(user, profile);
     photoMsg.textContent = "Photo saved.";
+    syncPhotoDirectory(photo);
   } catch (err) {
     console.error(err);
     photoMsg.style.color = "var(--danger)";
-    photoMsg.textContent = err && err.message && /image/i.test(err.message) ? err.message : "Could not save your photo. Please try again.";
+    photoMsg.textContent = err && err.message && /image|cloudinary|upload/i.test(err.message) ? err.message : "Could not save your photo. Please try again.";
   }
 });
 
@@ -241,3 +245,50 @@ pwForm.addEventListener("submit", async (e) => {
     catch (e) { if (!e || e.name !== "AbortError") copy(); }   // closing the sheet is not an error
   });
 })();
+
+/* ----------------------------------------------------- delete account --- */
+document.getElementById("delForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const delMsg = document.getElementById("delMsg");
+  const pw = document.getElementById("delPw").value;
+  if (!pw) { show(delMsg, "error", "Enter your password to confirm."); return; }
+  if (!confirm("Delete your account permanently? This cannot be undone.")) return;
+  const btn = document.getElementById("delBtn");
+  setLoading(btn, true, "Deleting...");
+  try {
+    // Re-check the password first (Firebase requires a fresh login to delete an account).
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, pw));
+    const uid = user.uid;
+    const snap = await getDoc(doc(db, "users", uid));
+    const info = snap.exists() ? snap.data() : {};
+    // 1) Remove the profile data while we are still logged in (the rules need this login).
+    const b = writeBatch(db);
+    if (info.username) b.delete(doc(db, "usernames", info.username));
+    if (info.userId) b.delete(doc(db, "handles", info.userId));
+    b.delete(doc(db, "directory", uid));
+    b.delete(doc(db, "users", uid));
+    await b.commit();
+    // 2) Remove the login itself.
+    await deleteUser(user);
+    try {
+      localStorage.removeItem("lumio_user");
+      Object.keys(localStorage).filter((k) => k.startsWith("ix_") || k.startsWith("lumio_")).forEach((k) => localStorage.removeItem(k));
+    } catch {}
+    location.replace("login.html");
+  } catch (err) {
+    console.error(err);
+    setLoading(btn, false);
+    if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") show(delMsg, "error", "Password is incorrect.");
+    else show(delMsg, "error", "Could not delete your account. Please try again.");
+  }
+});
+
+/* photo changed -> tell the directory (photoAt), so friends' screens pick it up on their next check */
+async function syncPhotoDirectory(photo) {
+  if (!profile || !profile.userId) return;
+  const sig = [profile.name, profile.userId, profile.username || "", photo].join("|");
+  try {
+    await setDoc(doc(db, "directory", user.uid), { name: profile.name, userId: profile.userId, username: profile.username || "", photo, photoAt: serverTimestamp() }, { merge: true });
+    localStorage.setItem("ix_dir_" + user.uid, sig);
+  } catch (e) { console.warn("Could not update the directory photo:", e); }
+}

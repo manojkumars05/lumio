@@ -147,3 +147,24 @@ While `videos` / `images` are empty, Lumio shows demo items from `js/sample-data
 - [ ] Non-admin sees "admins only" on `upload.html`
 - [ ] After adding yourself to `admins`: add a photo link, then a video link; both appear on Home
 - [ ] A non-https or broken link shows an error and is not saved
+
+## Cloudinary for pictures (profile photo + chat photos)
+
+All pictures now go to Cloudinary. Firestore keeps only the https link.
+
+1. Make a free Cloudinary account (no card). Copy your **Cloud name** from the dashboard.
+2. Settings -> Upload -> **Upload presets** -> Add preset.
+   - Signing mode: **Unsigned**
+   - Folder: `lumio`
+   - Allowed formats: `jpg,png,webp,gif,heic,avif` (so every kind of picture works)
+   - Max file size: 1 MB if your preset has this option (the app already keeps every photo under 1 MB)
+3. Open `js/cloudinary-config.js` and put in your cloud name and preset name.
+4. Publish the new `firestore.rules` (Firebase console -> Firestore -> Rules).
+5. Upload the site again (Firebase Hosting).
+
+Notes
+- Never put the Cloudinary API secret in the website files.
+- Old photos (saved before this change) still show; new ones use Cloudinary.
+- "Auto delete" hides a chat photo in the app after the admin's hours. A browser cannot delete
+  files from Cloudinary (that needs the secret), so clean the `lumio` folder from the Cloudinary
+  Media Library now and then.

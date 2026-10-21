@@ -54,9 +54,16 @@ service cloud.firestore {
         && request.time > createdAt + duration.value(autoDeleteHours(), 'h');
     }
 
-    // Profile photo: empty, or a small JPEG data URL (256 px square, about 10-30 KB).
+    // A picture link: an image on this app's Cloudinary (https://res.cloudinary.com/...).
+    function validPicUrl(value) {
+      return value is string && value.size() <= 600 && value.matches('https://res\\.cloudinary\\.com/.*');
+    }
+
+    // Profile photo: empty, a Cloudinary link, or (older photos) a small JPEG data URL.
     function validPhoto(value) {
-      return value is string && (value == '' || (value.size() <= 40000 && value.matches('data:image/jpeg;base64,.*')));
+      return value is string && (value == ''
+        || validPicUrl(value)
+        || (value.size() <= 40000 && value.matches('data:image/jpeg;base64,.*')));
     }
 
     // Chat theme + message theme names (users/{uid}.chatTheme / .msgTheme).
@@ -123,7 +130,7 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked'])
         && request.resource.data.blocked is bool;
 
-      allow delete: if false;
+      allow delete: if signedIn() && request.auth.uid == userId;
     }
 
     // ---- passwordRequests: "Forgot password" ---------------------------------
@@ -203,7 +210,7 @@ service cloud.firestore {
       allow read: if isAdmin();
 
       allow create: if signedIn() && notBlocked()
-        && request.resource.data.keys().hasOnly(['reporterId', 'reportedId', 'chatId', 'msgId', 'photoId', 'text', 'thumb', 'reason', 'status', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['reporterId', 'reportedId', 'chatId', 'msgId', 'photoId', 'photoUrl', 'text', 'thumb', 'reason', 'status', 'createdAt'])
         && request.resource.data.msgId is string
         && reportId == request.resource.data.msgId + '_' + request.auth.uid
         && request.resource.data.reporterId == request.auth.uid
@@ -217,6 +224,7 @@ service cloud.firestore {
         && request.resource.data.text is string && request.resource.data.text.size() <= 1000
         && request.resource.data.thumb is string && request.resource.data.thumb.size() <= 40000
         && request.resource.data.photoId is string && request.resource.data.photoId.size() <= 40
+        && (!('photoUrl' in request.resource.data) || request.resource.data.photoUrl == '' || validPicUrl(request.resource.data.photoUrl))
         && request.resource.data.createdAt == request.time
         && get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)/messages/$(request.resource.data.msgId)).data.senderId == request.resource.data.reportedId
         && get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)/messages/$(request.resource.data.msgId)).data.get('text', '') == request.resource.data.text;
@@ -264,7 +272,7 @@ service cloud.firestore {
                && request.resource.data.userId.matches('SMR-[0-9]{5}')
                && request.resource.data.name == resource.data.name);
 
-      allow delete: if false;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
     // ---- supportTickets: users write + read their own; admins read all and reply ----
@@ -329,7 +337,7 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 80
         && validPhoto(request.resource.data.get('photo', ''));
 
-      allow delete: if false;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
     // ---- videos: any signed-in user can watch; only admins can publish ----
@@ -389,8 +397,9 @@ service cloud.firestore {
     }
 
     // ---- private chats ----
-    // A message is text, or a photo preview: photoId + thumb (small) + hasImage + imageBytes.
-    // The full photo lives in chats/{chatId}/photos/{photoId} so lists stay light.
+    // A message is text, or a photo: photoId + photoUrl (full picture on Cloudinary) + thumb (small
+    // Cloudinary link) + hasImage + imageBytes. Older photos keep a data-URL thumb and a
+    // chats/{chatId}/photos/{photoId} document.
     match /chats/{chatId}/messages/{msgId} {
       allow read: if signedIn()
         && request.auth.uid in chatId.split('_');
@@ -399,7 +408,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.auth.uid in chatId.split('_')
         && notBlocked()
-        && request.resource.data.keys().hasOnly(['text', 'senderId', 'createdAt', 'replyTo', 'forwarded', 'photoId', 'thumb', 'hasImage', 'imageBytes'])
+        && request.resource.data.keys().hasOnly(['text', 'senderId', 'createdAt', 'replyTo', 'forwarded', 'photoId', 'photoUrl', 'thumb', 'hasImage', 'imageBytes'])
         && request.resource.data.senderId == request.auth.uid
         && request.resource.data.text is string
         && request.resource.data.text.size() <= 1000
@@ -412,7 +421,8 @@ service cloud.firestore {
                 && request.resource.data.thumb is string && request.resource.data.thumb.size() <= 40000
                 && request.resource.data.hasImage == true
                 && request.resource.data.imageBytes is int
-                && request.resource.data.imageBytes > 0 && request.resource.data.imageBytes <= 700000))
+                && request.resource.data.imageBytes > 0 && request.resource.data.imageBytes <= 1048576
+                && (!('photoUrl' in request.resource.data) || validPicUrl(request.resource.data.photoUrl))))
         && request.resource.data.createdAt == request.time;
 
       allow update: if (signedIn()
@@ -420,21 +430,21 @@ service cloud.firestore {
           && (
             // "Delete for everyone": only the sender. Blanks the text and drops a photo.
             (resource.data.senderId == request.auth.uid
-             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text', 'thumb', 'photoId', 'hasImage', 'imageBytes'])
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text', 'thumb', 'photoId', 'photoUrl', 'hasImage', 'imageBytes'])
              && request.resource.data.deleted == true
              && request.resource.data.text == '')
             // "Delete for me": any member may add only their own uid to hiddenFor
             || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hiddenFor'])
                 && request.auth.uid in request.resource.data.hiddenFor)
             // Auto delete: any member may clear a photo once it is older than the admin's hours.
-            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['thumb', 'photoId', 'hasImage', 'imageExpired'])
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['thumb', 'photoId', 'photoUrl', 'hasImage', 'imageExpired'])
                 && resource.data.get('hasImage', false) == true
                 && request.resource.data.get('hasImage', false) == false
                 && request.resource.data.imageExpired == true
                 && photoExpired(resource.data.createdAt))))
         // Admin: remove a reported message (and its photo).
         || (isAdmin()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text', 'thumb', 'photoId', 'hasImage', 'imageBytes', 'removedByAdmin'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text', 'thumb', 'photoId', 'photoUrl', 'hasImage', 'imageBytes', 'removedByAdmin'])
             && request.resource.data.deleted == true
             && request.resource.data.text == ''
             && request.resource.data.removedByAdmin == true);
@@ -442,7 +452,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ---- full-size chat photos (compressed, stored as text) ----
+    // ---- full-size chat photos, OLD messages only (new photos live on Cloudinary) ----
     // Only the two people in the chat (and the admin, for reports) can read one.
     // It is deleted by its sender, or by either person / the admin once it expires.
     match /chats/{chatId}/photos/{photoId} {
@@ -470,22 +480,37 @@ service cloud.firestore {
     // ---- directory: public card of each user, used for "People you may know" ----
     // directory/{uid} -> { name, userId, username }. Same details people can already find by
     // searching. Each user writes only their own card; a list query may fetch at most 30.
+    // Chat "delete for me" cutoff: one doc per friend, id = {myUid}_{friendUid}.
+    match /cleared/{clearId} {
+      allow get: if signedIn() && clearId.split('_')[0] == request.auth.uid;
+      allow create, update: if signedIn()
+        && clearId.split('_')[0] == request.auth.uid
+        && request.resource.data.keys().hasOnly(['at'])
+        && request.resource.data.at == request.time;
+      allow delete: if false;
+    }
+
     match /directory/{uid} {
       allow get: if signedIn();
       allow list: if signedIn() && request.query.limit <= 30;
 
       allow create, update: if signedIn()
         && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'userId', 'username'])
+        && request.resource.data.keys().hasOnly(['name', 'userId', 'username', 'photo', 'photoAt'])
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
         && request.resource.data.name.size() <= 80
         && request.resource.data.userId is string
         && request.resource.data.userId.matches('SMR-[0-9]{5}')
         && request.resource.data.username is string
-        && (request.resource.data.username == '' || validUsername(request.resource.data.username));
+        && (request.resource.data.username == '' || validUsername(request.resource.data.username))
+        && (!('photo' in request.resource.data) || validPhoto(request.resource.data.photo))
+        // photoAt: set to "now" when the photo changes (or kept as it was on other writes)
+        && (!('photoAt' in request.resource.data)
+            || request.resource.data.photoAt == request.time
+            || (resource != null && request.resource.data.photoAt == resource.data.get('photoAt', null)));
 
-      allow delete: if false;
+      allow delete: if signedIn() && request.auth.uid == uid;
     }
 
     // ---- notifications (bell icon): users/{uid}/notifications/{fromUid} ----

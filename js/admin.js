@@ -13,6 +13,7 @@ import {
   setDoc, updateDoc, writeBatch,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { escapeHTML, formatDate, setFieldError, setLoading, timeAgo } from "./utils.js";
+import { isImgSrc, avatarUrl } from "./cloudinary.js";
 
 const $ = (id) => document.getElementById(id);
 const user = await requireAuth();
@@ -159,32 +160,102 @@ function renderUsers() {
   const list = $("userList");
   list.innerHTML = "";
   shown.forEach((u) => {
-    const self = u.uid === user.uid;
     const row = document.createElement("div");
-    row.className = "ix-row";
+    row.className = "ix-row is-click";
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
     row.innerHTML = `
       <div class="ix-person-text">
         <strong>${escapeHTML(u.name || "User")} ${u.blocked ? '<span class="ix-pill blocked">blocked</span>' : ""}</strong>
         <small>${escapeHTML([u.userId, u.username ? "@" + u.username : "", u.email].filter(Boolean).join(" · "))}</small>
         <small>Joined ${escapeHTML(formatDate(u.joined) || "-")}</small>
       </div>
-      ${self ? "" : `<button class="btn ${u.blocked ? "btn-primary" : "btn-ghost"} btn-sm" type="button">${u.blocked ? "Unblock" : "Block"}</button>`}`;
-    row.querySelector("button")?.addEventListener("click", async (e) => {
-      const next = !u.blocked;
-      if (next && !confirm(`Block ${u.name || "this user"}? They will not be able to send messages.`)) return;
-      e.target.disabled = true;
-      try {
-        await setBlocked(u.uid, next);
-        renderUsers();
-      } catch (ex) {
-        console.error(ex);
-        e.target.disabled = false;
-        alert("Could not update this user.");
-      }
-    });
+      <span class="ix-go" aria-hidden="true">&rsaquo;</span>`;
+    row.addEventListener("click", () => openUser(u));
+    row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openUser(u); } });
     list.appendChild(row);
   });
 }
+
+/* ------------------------------------------------------ user details --- */
+// Tap a name -> full details (read fresh from users/{uid}) with Block / Unblock at the bottom.
+const KNOWN = new Set(["name", "username", "userId", "email", "dob", "photo", "blocked", "createdAt", "device", "lastLoginAt"]);
+const nice = (k) => k.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+function fmtDob(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || ""));
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : (v || "");
+}
+function fmtVal(v) {
+  if (v == null || v === "") return "";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "number") return String(v);
+  if (typeof v === "string") return v.length > 200 ? "" : v;
+  if (v && typeof v.toMillis === "function") return formatDate(v.toMillis()) || "";
+  return "";
+}
+let sheetUser = null;
+function paintSheet(u, d) {
+  $("usName").textContent = u.name || "User";
+  $("usStatus").hidden = !u.blocked;
+  const ph = $("usPhoto"), photo = d && d.photo;
+  if (isImgSrc(photo)) { ph.textContent = ""; ph.style.backgroundImage = `url("${avatarUrl(photo, 224)}")`; ph.dataset.full = photo; }
+  else { ph.style.backgroundImage = ""; ph.textContent = (u.name || "?").charAt(0).toUpperCase(); ph.dataset.full = ""; }
+  const rows = [
+    ["Name", u.name], ["Username", u.username ? "@" + u.username : ""], ["User ID", u.userId], ["Email", u.email],
+    ["Date of birth", fmtDob(d && d.dob)], ["Joined", formatDate(u.joined)], ["Status", u.blocked ? "Blocked" : "Active"],
+  ];
+  if (d) Object.keys(d).sort().forEach((k) => { if (!KNOWN.has(k)) rows.push([nice(k), fmtVal(d[k])]); });
+  if (d) {
+    rows.push(["Device", d.device || ""]);
+    rows.push(["Last login", d.lastLoginAt && d.lastLoginAt.toMillis ? formatDate(d.lastLoginAt.toMillis()) : ""]);
+  }
+  rows.push(["Account ID", u.uid]);
+  $("usList").innerHTML = rows.filter((r) => r[1]).map((r) => `<div><dt>${escapeHTML(r[0])}</dt><dd>${escapeHTML(String(r[1]))}</dd></div>`).join("");
+  const btn = $("usBlock");
+  const self = u.uid === user.uid;
+  btn.hidden = self;
+  btn.textContent = u.blocked ? "Unblock user" : "Block user";
+  btn.className = "btn btn-block " + (u.blocked ? "btn-primary" : "btn-danger-fill");
+  btn.disabled = false;
+}
+async function openUser(u) {
+  sheetUser = u;
+  $("usMsg").hidden = true;
+  paintSheet(u, null);
+  $("userSheet").hidden = false;
+  try {
+    const snap = await getDoc(doc(db, "users", u.uid));
+    if (sheetUser === u && snap.exists()) paintSheet(u, snap.data());
+  } catch (e) { console.warn("Could not load full details:", e); }
+}
+function closeUser() { $("userSheet").hidden = true; sheetUser = null; }
+$("usBack").addEventListener("click", closeUser);
+$("usPhoto").addEventListener("click", () => {
+  const full = $("usPhoto").dataset.full;
+  if (!full) return;
+  const box = document.createElement("div");
+  box.className = "ix-lightbox";
+  const img = document.createElement("img"); img.alt = "Profile photo"; img.src = full;
+  box.appendChild(img);
+  box.addEventListener("click", () => box.remove());
+  document.body.appendChild(box);
+});
+$("usBlock").addEventListener("click", async () => {
+  const u = sheetUser; if (!u) return;
+  const next = !u.blocked;
+  if (next && !confirm(`Block ${u.name || "this user"}? They will not be able to send messages.`)) return;
+  const btn = $("usBlock"); btn.disabled = true;
+  try {
+    await setBlocked(u.uid, next);
+    u.blocked = next;
+    paintSheet(u, null); renderUsers();
+    openUser(u);                                  // reload the full details
+  } catch (ex) {
+    console.error(ex); btn.disabled = false;
+    const m = $("usMsg"); m.textContent = "Could not update this user."; m.hidden = false;
+  }
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("userSheet").hidden) closeUser(); });
 $("userFilter").addEventListener("input", renderUsers);
 
 /* ----------------------------------------------------------- reports --- */
@@ -247,7 +318,7 @@ function reportRow(r) {
     </header>
     <small>Reported by ${escapeHTML(who(r.reporterId))} &middot; ${escapeHTML(REASONS[r.reason] || r.reason || "")} &middot; ${escapeHTML(timeAgo(r.createdAt) || "just now")}</small>
     ${r.text ? `<p class="ix-msgtext">${escapeHTML(r.text)}</p>` : ""}
-    ${r.thumb && r.thumb.startsWith("data:image/") ? `<img class="ix-thumb" alt="Reported photo" src="${escapeHTML(r.thumb)}">` : ""}
+    ${r.thumb && /^(data:image\/|https:\/\/res\.cloudinary\.com\/)/.test(r.thumb) ? `<img class="ix-thumb" alt="Reported photo" src="${escapeHTML(r.thumb)}">` : ""}
     ${!r.text && !r.thumb ? '<small>The message has no preview (photo already expired or deleted).</small>' : ""}
     <div class="ix-actions">
       ${isOpen ? `<button class="btn btn-ghost btn-sm" type="button" data-a="delete">Delete message</button>` : ""}
@@ -323,6 +394,7 @@ async function viewReportedPhoto(r) {
   box.appendChild(img);
   box.addEventListener("click", () => box.remove());
   document.body.appendChild(box);
+  if (r.photoUrl && String(r.photoUrl).startsWith("https://res.cloudinary.com/")) { img.src = r.photoUrl; return; }
   if (!r.photoId) return;
   try {
     const snap = await getDoc(doc(db, "chats", r.chatId, "photos", r.photoId));

@@ -18,7 +18,7 @@
   <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet"></noscript>
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body data-ptr="photos">
   <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="ix-top">
@@ -62,12 +62,6 @@
       <p class="muted" id="friendsEmpty" hidden>No friends yet. Message someone and they will show up here.</p>
     </section>
 
-    <section class="ix-sec" aria-labelledby="sugTitle">
-      <div class="ix-sec-head"><h2 id="sugTitle">People you may know</h2><a href="search.html">Search</a></div>
-      <div class="ix-list" id="sugList"></div>
-      <p class="muted" id="sugEmpty" hidden>No suggestions right now. Try Search to find someone.</p>
-    </section>
-
     <section class="auth-card ix-cta">
       <h2>Start chatting</h2>
       <p class="lead">Open your messages, or find a friend by their InfiniX ID or username.</p>
@@ -81,5 +75,6 @@
   <script src="js/boot.js"></script>
   <script type="module" src="js/home.js"></script>
   <script type="module" src="js/sidebar.js"></script>
+  <script src="js/ptr.js"></script>
 </body>
 </html>

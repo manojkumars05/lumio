@@ -53,6 +53,10 @@
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
           <span>Download the app</span><i aria-hidden="true">&rsaquo;</i>
         </a>
+        <a href="#delete" class="ix-menu-item ix-menu-danger">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+          <span>Delete account</span><i aria-hidden="true">&rsaquo;</i>
+        </a>
         <button type="button" class="ix-menu-item ix-menu-danger" id="logoutBtn">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
           <span>Logout</span>
@@ -157,6 +161,22 @@
     </section>
 
     <!-- ===== Privacy Policy ===== -->
+    <section data-view="delete" hidden>
+      <a href="#" class="ix-back">&larr; Settings</a>
+      <h1 class="ix-title">Delete account</h1>
+      <section class="auth-card">
+        <p><strong>This permanently deletes your account.</strong></p>
+        <p class="muted">Your profile, ID, username and friend card are removed, and you can no longer log in. Chat messages you sent stay visible to the other people in those chats, shown as "Unknown user" once your profile is gone.</p>
+        <div id="delMsg" class="alert" hidden></div>
+        <form id="delForm" novalidate>
+          <label for="delPw">Enter your password to confirm</label>
+          <input id="delPw" type="password" autocomplete="current-password" required>
+          <button class="btn btn-danger-fill btn-block" type="submit" id="delBtn">
+            <span class="spinner" hidden></span><span class="btn-label">Delete my account</span>
+          </button>
+        </form>
+      </section>
+    </section>
     <section data-view="privacy" hidden>
       <a href="#" class="ix-back">&larr; Settings</a>
       <h1 class="ix-title">Privacy Policy</h1>
@@ -234,5 +254,6 @@
   <script src="js/boot.js"></script>
   <script type="module" src="js/settings.js"></script>
   <script type="module" src="js/sidebar.js"></script>
+  <script src="js/ptr.js"></script>
 </body>
 </html>

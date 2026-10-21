@@ -645,6 +645,19 @@ body.has-bar:has(#wrap.in-chat) { padding-bottom: 0; }
 .ix-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .ix-row .ix-person-text { flex: 1; min-width: 0; }
 .ix-row small { color: var(--muted); }
+/* admin: user details sheet (full screen on a phone) */
+.ix-sheet { position: fixed; inset: 0; z-index: 250; overflow-y: auto; background: var(--bg); padding: 14px; }
+.ix-sheet-card { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; padding-bottom: 28px; }
+.ix-us-head { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.ix-us-head h2 { margin: 0; word-break: break-word; }
+.ix-us-photo { width: 112px; height: 112px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface-2) center / cover no-repeat; color: var(--text); font: 700 2.4rem var(--font-display); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.ix-us-list { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.ix-us-list > div { padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.ix-us-list dt { font-size: 0.74rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.ix-us-list dd { margin: 2px 0 0; word-break: break-all; }
+.ix-row.is-click { cursor: pointer; }
+.ix-row .ix-go { color: var(--muted); font-size: 1.4rem; line-height: 1; }
+.btn-danger-fill { background: #b91c1c; color: #fff; border: 0; }
 .ix-pill { padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; background: var(--surface-2); color: var(--muted); }
 .ix-pill.pending { background: var(--warn-bg); color: var(--warn); }
 .ix-pill.approved, .ix-pill.used { background: var(--success-bg); color: var(--success); }
