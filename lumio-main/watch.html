@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js">
+  <link rel="modulepreload" href="js/firebase-config.js">
+  <title>Watch - Lumio</title>
+  <meta name="description" content="Watch a video on Lumio.">
+  <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <a class="brand" href="home.html"><img src="assets/images/logo.svg" alt="" width="34" height="34"><span>Lumio</span></a>
+
+    <!-- Plain GET form: sends the visitor to home.html?q=... where the search runs -->
+    <form class="search" role="search" action="home.html" method="get">
+      <label for="searchInput" class="visually-hidden">Search videos</label>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="searchInput" name="q" type="search" placeholder="Search videos, topics, creators..." autocomplete="off">
+      <button class="search-btn" type="submit" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </form>
+
+    <div class="header-right">
+      <nav class="nav" aria-label="Primary">
+        <a href="home.html">Home</a>
+        <a href="upload.html">Upload</a>
+        <a href="settings.html">Settings</a>
+      <a href="support.html">Support</a>
+      </nav>
+      <div class="user-chip">
+        <span class="avatar" data-user-avatar aria-hidden="true">?</span>
+        <span class="user-text"><strong data-user-name>Loading...</strong><small data-user-email></small></span>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" data-logout aria-label="Log out"><span class="btn-logout-text">Log out</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button>
+    </div>
+  </header>
+
+  <main id="main" class="container">
+    <div class="watch-layout">
+      <article>
+        <!-- Custom player. Videos never autoplay: the visitor must press play. -->
+        <div class="player" id="player">
+          <video id="video" preload="metadata" playsinline></video>
+
+          <button class="player-big" id="bigPlay" type="button" aria-label="Play video">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+          </button>
+
+          <div class="player-status" id="playerStatus" role="status"></div>
+
+          <div class="player-controls" id="controls">
+            <button class="ctrl" id="playBtn" type="button" aria-label="Play">
+              <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+              <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            </button>
+            <span class="time" id="currentTime">0:00</span>
+            <input id="seek" type="range" min="0" max="100" step="0.1" value="0" aria-label="Seek (progress bar)">
+            <span class="time" id="durationTime">0:00</span>
+            <button class="ctrl" id="muteBtn" type="button" aria-label="Mute">
+              <svg class="icon-vol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+              <svg class="icon-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="currentColor"/><path d="m16 9 5 6M21 9l-5 6"/></svg>
+            </button>
+            <input id="volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+            <button class="ctrl" id="fsBtn" type="button" aria-label="Fullscreen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="watch-meta" id="watchMeta" hidden>
+          <h1 id="videoTitle"></h1>
+          <div class="watch-byline">
+            <span class="avatar" id="uploaderAvatar" aria-hidden="true"></span>
+            <span><strong id="uploaderName"></strong></span>
+            <span id="videoDate"></span>
+          </div>
+          <div class="watch-desc" id="videoDesc"></div>
+          <div class="tag-list" id="tagList"></div>
+        </div>
+
+        <div class="empty-state" id="watchError" role="alert" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.01"/></svg>
+          <h3 id="watchErrorTitle">Video not found</h3>
+          <p id="watchErrorText">It may have been removed or the link is wrong.</p>
+          <a class="btn btn-primary" href="home.html"><span class="btn-label">Back to home</span></a>
+        </div>
+      </article>
+
+      <aside class="up-next" aria-labelledby="upNextTitle">
+        <h2 id="upNextTitle">Up next</h2>
+        <div class="up-next-list" id="upNext"></div>
+      </aside>
+    </div>
+  </main>
+
+  <script src="js/boot.js"></script>
+  <script type="module" src="js/watch.js"></script>
+  <script type="module" src="js/sidebar.js"></script>
+</body>
+</html>

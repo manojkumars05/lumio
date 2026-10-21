@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js">
+  <link rel="modulepreload" href="js/firebase-config.js">
+  <title>Settings - InfiniX</title>
+  <meta name="theme-color" content="#0f0b1f">
+  <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="ix-top">
+    <a class="brand" href="home.html"><img src="assets/images/logo.svg" alt="" width="32" height="32"><span>InfiniX</span></a>
+    <span class="avatar" data-user-avatar aria-hidden="true">?</span>
+  </header>
+
+  <main id="main" class="container ix-page" style="max-width:560px;">
+
+    <!-- ===== Menu ===== -->
+    <section data-view="menu">
+      <h1 class="ix-title">Settings</h1>
+      <div class="ix-menu">
+        <a href="#profile" class="ix-menu-item">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+          <span>Profile</span><i aria-hidden="true">&rsaquo;</i>
+        </a>
+        <a href="#security" class="ix-menu-item">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <span>Password and Security</span><i aria-hidden="true">&rsaquo;</i>
+        </a>
+        <a href="#privacy" class="ix-menu-item">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.4-8 9-4.6-.6-8-4.5-8-9V6z"/></svg>
+          <span>Privacy Policy</span><i aria-hidden="true">&rsaquo;</i>
+        </a>
+        <a href="#help" class="ix-menu-item">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg>
+          <span>Help</span><i aria-hidden="true">&rsaquo;</i>
+        </a>
+        <a href="#invite" class="ix-menu-item" id="inviteLink" hidden>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6"/></svg>
+          <span>Invite friends</span><i aria-hidden="true">&rsaquo;</i>
+        </a>
+        <a href="download.html" class="ix-menu-item" id="dlLink">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+          <span>Download the app</span><i aria-hidden="true">&rsaquo;</i>
+        </a>
+        <a href="#delete" class="ix-menu-item ix-menu-danger">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+          <span>Delete account</span><i aria-hidden="true">&rsaquo;</i>
+        </a>
+        <button type="button" class="ix-menu-item ix-menu-danger" id="logoutBtn">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          <span>Logout</span>
+        </button>
+      </div>
+    </section>
+    <!-- Decide Invite / Download visibility instantly (no flicker on refresh or when coming back to this page). -->
+    <script>
+    (function () {
+      var ua = navigator.userAgent;
+      var phone = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+      var installed = false;
+      try {
+        installed = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+          /; wv\)/.test(ua) || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+      } catch (e) {}
+      var inv = document.getElementById("inviteLink"), dl = document.getElementById("dlLink");
+      if (inv) inv.hidden = phone && !installed;
+      if (dl) dl.hidden = installed;
+    })();
+    </script>
+
+    <!-- ===== Profile ===== -->
+    <section data-view="profile" hidden>
+      <a href="#" class="ix-back">&larr; Settings</a>
+      <h1 class="ix-title">Profile</h1>
+      <section class="auth-card">
+        <div id="nameMsg" class="alert" hidden></div>
+        <div class="photo-edit">
+          <div class="photo-wrap">
+            <span class="avatar avatar-xl" id="profilePhoto" data-user-avatar aria-hidden="true">?</span>
+            <button type="button" class="photo-pen" id="photoPen" aria-label="Change profile photo" title="Change photo">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+            </button>
+          </div>
+          <input type="file" id="photoFile" accept="image/*" hidden>
+          <div class="hint" id="photoMsg" aria-live="polite">Tap the pencil to change your photo.</div>
+        </div>
+        <form id="nameForm" novalidate>
+          <div class="field">
+            <label>InfiniX ID</label>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <code id="myId" style="font-size:1.15rem;font-weight:700;letter-spacing:.04em;flex:1;">...</code>
+              <button class="btn btn-ghost btn-sm" type="button" id="copyId">Copy</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="usernameShow">Username</label>
+            <input id="usernameShow" type="text" readonly aria-readonly="true">
+            <div class="hint">Your username can't be changed.</div>
+          </div>
+          <div class="field">
+            <label for="newName">Name</label>
+            <input id="newName" type="text" autocomplete="name" maxlength="80" required>
+            <div class="field-error" id="newName-error" aria-live="polite"></div>
+          </div>
+          <div class="field">
+            <label for="newDob">Date of birth</label>
+            <input id="newDob" type="date" autocomplete="bday">
+            <div class="field-error" id="newDob-error" aria-live="polite"></div>
+          </div>
+          <div class="field">
+            <label for="emailShow">Email</label>
+            <input id="emailShow" type="email" readonly aria-readonly="true">
+          </div>
+          <button class="btn btn-primary btn-block" type="submit" id="nameBtn">
+            <span class="spinner" hidden></span><span class="btn-label">Save</span>
+          </button>
+        </form>
+      </section>
+    </section>
+
+    <!-- ===== Password and Security ===== -->
+    <section data-view="security" hidden>
+      <a href="#" class="ix-back">&larr; Settings</a>
+      <h1 class="ix-title">Password and Security</h1>
+      <section class="auth-card">
+        <h2 style="margin-bottom:14px;">Change password</h2>
+        <div id="pwMsg" class="alert" hidden></div>
+        <form id="pwForm" novalidate>
+          <div class="field">
+            <label for="currentPassword">Current password</label>
+            <input id="currentPassword" type="password" autocomplete="current-password" required>
+            <div class="field-error" id="currentPassword-error" aria-live="polite"></div>
+          </div>
+          <div class="field">
+            <label for="newPassword">New password</label>
+            <input id="newPassword" type="password" autocomplete="new-password" required>
+            <div class="field-error" id="newPassword-error" aria-live="polite"></div>
+          </div>
+          <div class="field">
+            <label for="confirmPassword">Confirm new password</label>
+            <input id="confirmPassword" type="password" autocomplete="new-password" required>
+            <div class="field-error" id="confirmPassword-error" aria-live="polite"></div>
+          </div>
+          <label class="check"><input type="checkbox" id="showPassword"> Show passwords</label>
+          <button class="btn btn-primary btn-block" type="submit" id="pwBtn">
+            <span class="spinner" hidden></span><span class="btn-label">Update password</span>
+          </button>
+        </form>
+      </section>
+    </section>
+
+    <!-- ===== Privacy Policy ===== -->
+    <section data-view="delete" hidden>
+      <a href="#" class="ix-back">&larr; Settings</a>
+      <h1 class="ix-title">Delete account</h1>
+      <section class="auth-card">
+        <p><strong>This permanently deletes your account.</strong></p>
+        <p class="muted">Your profile, ID, username and friend card are removed, and you can no longer log in. Chat messages you sent stay visible to the other people in those chats, shown as "Unknown user" once your profile is gone.</p>
+        <div id="delMsg" class="alert" hidden></div>
+        <form id="delForm" novalidate>
+          <label for="delPw">Enter your password to confirm</label>
+          <input id="delPw" type="password" autocomplete="current-password" required>
+          <button class="btn btn-danger-fill btn-block" type="submit" id="delBtn">
+            <span class="spinner" hidden></span><span class="btn-label">Delete my account</span>
+          </button>
+        </form>
+      </section>
+    </section>
+    <section data-view="privacy" hidden>
+      <a href="#" class="ix-back">&larr; Settings</a>
+      <h1 class="ix-title">Privacy Policy</h1>
+      <article class="auth-card ix-legal">
+        <p class="muted">Last updated: 15 October 2026</p>
+        <p>InfiniX ("we", "our", "the app") is a messaging app. This policy explains what information we collect, how we use it and the choices you have. By creating an account you agree to this policy.</p>
+
+        <h2>1. Information we collect</h2>
+        <p><strong>Account information:</strong> your name, username, email address, date of birth and an InfiniX ID that we generate for you. Your password is handled by Firebase Authentication and is never stored by us in readable form.</p>
+        <p><strong>Messages and media:</strong> the messages and photos you send are stored so they can be delivered to the person you are chatting with.</p>
+        <p><strong>Technical information:</strong> basic device and usage data needed to keep the service secure and working.</p>
+
+        <h2>2. How we use your information</h2>
+        <ul>
+          <li>To create and secure your account and let you log in.</li>
+          <li>To deliver messages and show your name and username to people who search for you.</li>
+          <li>To show a birthday greeting to you, on your birthday only.</li>
+          <li>To prevent abuse and respond to support requests.</li>
+        </ul>
+
+        <h2>3. What other users can see</h2>
+        <p>Other users can find you by your InfiniX ID or username and can see your name. Your email address and date of birth are private and are not shown to other users.</p>
+
+        <h2>4. Sharing</h2>
+        <p>We do not sell your personal information. Data is processed by our service providers (Google Firebase for authentication and database hosting) only to operate the app.</p>
+
+        <h2>5. Retention and deletion</h2>
+        <p>Your information is kept while your account is active. Photos and other media in chats may be deleted automatically after a set time. To request deletion of your account or data, contact support from the Help page.</p>
+
+        <h2>6. Security</h2>
+        <p>We use industry-standard protections, including encrypted connections and access rules that limit each user to their own data. No method of transmission or storage is completely secure, so please choose a strong password and keep it private.</p>
+
+        <h2>7. Children</h2>
+        <p>InfiniX is not intended for children under 13. If you believe a child has created an account, please contact us so we can remove it.</p>
+
+        <h2>8. Changes to this policy</h2>
+        <p>We may update this policy from time to time. The date at the top shows when it was last changed.</p>
+
+        <h2>9. Contact</h2>
+        <p>Questions about privacy? Use the support form on the Help page.</p>
+      </article>
+    </section>
+
+    <!-- ===== Invite friends (installed app + computers only) ===== -->
+    <section data-view="invite" hidden>
+      <a href="#" class="ix-back">&larr; Settings</a>
+      <h1 class="ix-title">Invite friends</h1>
+      <section class="auth-card">
+        <p class="muted" style="margin-top:0;">Share InfiniX with your friends. They open a page with a button to join or download the app.</p>
+        <div class="field">
+          <label for="inviteUrl">Your invite link</label>
+          <input id="inviteUrl" type="text" readonly>
+        </div>
+        <button class="btn btn-primary btn-block" type="button" id="inviteShare">Share invite</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+          <button class="btn btn-ghost btn-sm" type="button" id="inviteCopy">Copy link</button>
+          <a class="btn btn-ghost btn-sm" id="inviteWa" target="_blank" rel="noopener">WhatsApp</a>
+          <a class="btn btn-ghost btn-sm" id="inviteTg" target="_blank" rel="noopener">Telegram</a>
+          <a class="btn btn-ghost btn-sm" id="inviteMail">Email</a>
+        </div>
+        <div class="hint" id="inviteMsg" aria-live="polite"></div>
+      </section>
+    </section>
+
+    <!-- ===== Help ===== -->
+    <section data-view="help" hidden>
+      <a href="#" class="ix-back">&larr; Settings</a>
+      <h1 class="ix-title">Help</h1>
+      <div class="ix-menu">
+        <a href="support.html" class="ix-menu-item"><span>Contact support</span><i aria-hidden="true">&rsaquo;</i></a>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/boot.js"></script>
+  <script type="module" src="js/settings.js"></script>
+  <script type="module" src="js/sidebar.js"></script>
+</body>
+</html>
