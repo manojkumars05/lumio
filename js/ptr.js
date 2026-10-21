@@ -51,7 +51,7 @@
     if (document.body.dataset.ptr !== "photos") { location.reload(); return; }
     busy = true;
     say("Checking photos...", true);
-    import("js/avatars.js")
+    import("./js/avatars.js")
       .then(function (m) { return m.refreshPhotos(); })
       .then(function (changed) { say(changed ? "Photos updated" : "Photos are up to date"); })
       .catch(function () { say("Could not refresh. Check your internet."); })
